@@ -1,7 +1,6 @@
 
 
 import React, { useState } from 'react';
-import { createRoot } from 'react-dom/client';
 import { WorkflowStep, ProjectConfig, StoryboardFrame, STYLES, AspectRatio, AppSettings, DEFAULT_SETTINGS, CONTACT_INFO, Language } from './types';
 import Setup from './components/Setup';
 import Editor from './components/Editor';
