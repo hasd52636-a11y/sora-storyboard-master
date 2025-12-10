@@ -314,7 +314,4 @@ const App: React.FC = () => {
   );
 };
 
-const root = createRoot(document.getElementById('root')!);
-root.render(<App />);
-
 export default App;
