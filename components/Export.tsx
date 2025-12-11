@@ -11,9 +11,10 @@ interface ExportProps {
   frames: StoryboardFrame[];
   onBack: () => void;
   lang: Language;
+  setCurrentStep: (step: WorkflowStep) => void;
 }
 
-const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang }) => {
+const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurrentStep }) => {
   const tr = (key: any) => t(lang, key);
   const sheetRefs = useRef<(HTMLDivElement | null)[]>([]);
   
@@ -54,61 +55,55 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang }) => {
   // Generate Technical Prompts
   const generatePrompt = (subsetFrames: StoryboardFrame[], targetLang: Language) => {
     const isZh = targetLang === 'zh';
-    let prompt = isZh ? `[全局参数]\n` : `[GLOBAL PARAMS]\n`;
-    prompt += isZh 
-      ? `比例: ${config.aspectRatio} | 风格: ${config.style.nameZh || config.style.name} | 总时长: ${config.duration}秒\n`
-      : `Ratio: ${config.aspectRatio} | Style: ${config.style.name} | Total Duration: ${config.duration}s\n`;
     
-    prompt += isZh ? `[图例说明]\n` : `[LEGEND]\n`;
-    if (isZh) {
-      prompt += `1. 蓝色框 (STORYBOARD FRAME) = 目标分镜画面。\n`;
-      prompt += `2. 红色虚线框 (REF SUBJECT) = 角色/画风参考。\n`;
-      prompt += `3. 画面内的彩色线条 = 动作或位置指令。\n`;
-      prompt += `4. 画面下方的列表 = 该分镜包含的详细动作与运镜。\n`;
-    } else {
-      prompt += `1. BLUE Box (STORYBOARD FRAME) = Target Shot Content.\n`;
-      prompt += `2. RED Dashed Box (REF SUBJECT) = Character/Style Reference.\n`;
-      prompt += `3. Colored Lines ON Image = Action/Position instructions.\n`;
-      prompt += `4. List BELOW Image = Detailed actions & camera moves.\n`;
-    }
+    // Header: 定义Sora/Runway能理解的全局风格
+    let prompt = `=== AI VIDEO GENERATION PROMPT ===\n`;
+    prompt += `[GLOBAL CONTEXT]\n`;
+    prompt += `Style: ${config.style.name} Cinematic Video\n`;
+    prompt += `Resolution: 16:9 (${config.aspectRatio})\n`;
+    prompt += `Total Duration: ${config.duration}s\n\n`;
 
-    prompt += isZh ? `\n[分镜详细指令]\n` : `\n[SHOT LIST]\n`;
-    subsetFrames.forEach(f => {
-      const camSyms = f.symbols.filter(s => s.category === SymbolCategory.CAMERA);
-      const spatialSyms = f.symbols.filter(s => s.category !== SymbolCategory.CAMERA);
-      const dialogueSyms = f.symbols.filter(s => s.category === SymbolCategory.DIALOGUE);
-      
-      let shotInstruction = `SC-${f.number.toString().padStart(2, '0')}`;
-      
-      // Describe Content
-      shotInstruction += `\n   > ${isZh ? '内容' : 'Content'}: ${isZh ? f.descriptionZh || f.description : f.description}`;
+    prompt += `[SHOT SEQUENCE]\n`;
+    
+    // Symbol to text mapping based on icon field
+    const symbolIconToTextMap: Record<string, string> = {
+      'zoom-in': "Camera zooms in,",
+      'zoom-out': "Camera zooms out,",
+      'pan-left': "Camera pans left,",
+      'pan-right': "Camera pans right,",
+      'tilt-up': "Camera tilts up,",
+      'tilt-down': "Camera tilts down,",
+      'tracking': "Tracking shot,",
+      'hitchcock': "Dolly zoom effect,",
+      'speech-bubble': "Character is speaking,"
+    };
 
-      // Describe Spatial Actions (Precise Coordinates)
-      if (spatialSyms.length > 0) {
-          const actions = spatialSyms.map(s => {
-              const pos = getPosLabel(s.x, s.y, targetLang);
-              const name = getSymbolName(s.name, targetLang);
-              return `"${name}" @ {${pos}}`;
-          }).join(' | ');
-          shotInstruction += `\n   > ${isZh ? '空间指令' : 'Spatial'}: ${actions}`;
+    subsetFrames.forEach((f, index) => {
+      // 构建结构化的单镜头指令
+      let shotHeader = `SHOT ${index + 1} (Time: ${f.duration || 'Auto'})`;
+      let contentDesc = isZh ? (f.descriptionZh || f.description) : f.description;
+      
+      // 转译符号为自然语言动作指令
+      let symbolDirectives = f.symbols
+        .map(s => symbolIconToTextMap[s.icon] || '')
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      // 移除最后一个逗号（如果存在）
+      if (symbolDirectives.endsWith(',')) {
+        symbolDirectives = symbolDirectives.slice(0, -1);
       }
 
-      // Describe Camera
-      if (camSyms.length > 0) {
-          const cams = camSyms.map(s => getSymbolName(s.name, targetLang)).join(' + ');
-          shotInstruction += `\n   > ${isZh ? '运镜' : 'Camera'}: [${cams}]`;
-      }
-      
-      // Describe Dialogue
-      if (dialogueSyms.length > 0) {
-          dialogueSyms.forEach(d => {
-              if (d.text) {
-                  shotInstruction += `\n   > ${isZh ? '对话' : 'Dialogue'}: (Character speaks: "${d.text}")`;
-              }
-          });
+      // 构建完整的PROMPT描述
+      let fullDesc = contentDesc;
+      if (symbolDirectives) {
+        fullDesc += `. ${symbolDirectives}`;
       }
 
-      prompt += `${shotInstruction}\n----------------------------------\n`;
+      prompt += `${shotHeader}\n`;
+      prompt += `PROMPT: ${fullDesc}. Style: ${config.style.name}.\n`;
+      prompt += `----------------------------------\n`;
     });
 
     return prompt;
@@ -118,66 +113,79 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang }) => {
     const element = sheetRefs.current[index];
     if (element) {
       try {
-        // 创建一个克隆元素，确保所有样式都被正确应用
-        const clone = element.cloneNode(true) as HTMLElement;
-        clone.style.position = 'absolute';
-        clone.style.left = '-9999px';
-        clone.style.top = '-9999px';
-        clone.style.width = element.offsetWidth + 'px';
-        clone.style.height = element.offsetHeight + 'px';
-        clone.style.pointerEvents = 'none';
+        // 确保元素在视口中可见
+        const originalVisibility = element.style.visibility;
+        const originalPosition = element.style.position;
+        const originalLeft = element.style.left;
         
-        // 确保所有CSS类都被应用
-        clone.classList.add('force-render');
+        element.style.visibility = 'visible';
+        element.style.position = 'relative';
+        element.style.left = '0';
         
-        // 添加到DOM
-        document.body.appendChild(clone);
+        // 强制重绘
+        element.offsetHeight;
         
-        // 等待所有图片加载完成（包括克隆元素中的图片）
-        const images = clone.querySelectorAll('img');
+        // 等待所有图片加载完成
+        const images = element.querySelectorAll('img');
         await Promise.all(Array.from(images).map(img => {
           if (img.complete) return Promise.resolve();
           return new Promise((resolve) => {
             img.onload = resolve;
-            img.onerror = resolve; // 即使图片加载失败也继续
+            img.onerror = resolve;
           });
         }));
         
+        // 增加额外的等待时间，确保所有内容都已渲染完成
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // 优化html2canvas配置
-        const canvas = await html2canvas(clone, {
+        const canvas = await html2canvas(element, {
           scale: 2,
           useCORS: true,
           backgroundColor: '#ffffff',
-          logging: false,
+          logging: true,
           allowTaint: true,
           foreignObjectRendering: true,
           scrollX: 0,
           scrollY: 0,
-          windowWidth: clone.offsetWidth,
-          windowHeight: clone.offsetHeight,
+          windowWidth: element.scrollWidth,
+          windowHeight: element.scrollHeight,
           ignoreElements: (element) => {
-            // 忽略可能导致问题的元素
             return element.tagName.toLowerCase() === 'script' || 
                    element.tagName.toLowerCase() === 'style';
-          }
+          },
+          // 改进的配置选项
+          imageTimeout: 10000,
+          removeContainer: false,
         });
         
-        // 清理克隆元素
-        document.body.removeChild(clone);
+        // 恢复原始样式
+        element.style.visibility = originalVisibility;
+        element.style.position = originalPosition;
+        element.style.left = originalLeft;
         
-        const link = document.createElement('a');
-        link.download = `storyboard-sheet-${index + 1}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        // 将canvas转换为Blob并下载
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const link = document.createElement('a');
+            link.download = `storyboard-sheet-${index + 1}.png`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            // 释放URL对象
+            URL.revokeObjectURL(link.href);
+          } else {
+            throw new Error('Failed to create blob from canvas');
+          }
+        }, 'image/png', 1.0);
       } catch (err) {
         console.error("Export failed", err);
         alert("Failed to export image");
-        // 确保即使出错也清理克隆元素
-        const clones = document.querySelectorAll('.force-render');
-        clones.forEach(clone => clone.remove());
       }
-    }
-  };
+    } else {
+        console.error("Element not found for download");
+        alert("Element not found for download");
+      }
+    };
 
   const itemsPerPage = 9; // 每页最多显示9张分镜图
   const totalPages = Math.ceil(frames.length / itemsPerPage);
@@ -196,11 +204,51 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang }) => {
   return (
     <div className="flex flex-col h-full w-full max-w-[1900px] mx-auto px-6 pb-8">
       <div className="flex items-center justify-between relative py-4">
-          <button onClick={onBack} className="flex items-center px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm text-gray-700 font-bold text-sm hover:bg-gray-50 transition-all z-10">
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-             {tr('edit')}
-          </button>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><StepIndicator currentStep={WorkflowStep.EXPORT} lang={lang} /></div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><StepIndicator currentStep={WorkflowStep.EXPORT} lang={lang} onStepClick={setCurrentStep} /></div>
+      </div>
+      
+      {/* 集中的按钮区域 */}
+      <div className="flex flex-wrap items-center justify-between gap-4 py-4 border-b border-gray-200">
+        <button onClick={onBack} className="flex items-center px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-sm font-bold transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          {tr('back')}
+        </button>
+        
+        <div className="flex flex-wrap gap-2">
+          {/* 为每个分镜表创建操作按钮 */}
+          {Array.from({ length: totalPages }, (_, pageIndex) => {
+            const promptText = generatePrompt(frames.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage), promptLang);
+            return (
+              <React.Fragment key={pageIndex}>
+                {/* 分镜表标题 */}
+                <span className="px-3 py-2 text-gray-500 text-sm font-medium self-center">
+                  {tr('sheet')} {pageIndex + 1}:
+                </span>
+                
+                {/* 复制提示词按钮 */}
+                <button 
+                  onClick={() => navigator.clipboard.writeText(promptText)} 
+                  className="px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-bold transition-colors"
+                >
+                  {tr('copyPrompts')}
+                </button>
+                
+                {/* 下载分镜图按钮 */}
+                <button 
+                  onClick={() => handleDownload(pageIndex)} 
+                  className="flex items-center px-5 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-bold transition-colors"
+                >
+                  {tr('downloadImage')}
+                </button>
+                
+                {/* 如果不是最后一个分镜表，添加分隔线 */}
+                {pageIndex < totalPages - 1 && (
+                  <div className="w-px h-8 bg-gray-200 mx-2"></div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
       </div>
       
       <div className="flex-1 overflow-y-auto space-y-16 pb-12">
@@ -213,14 +261,6 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang }) => {
                         <div className="flex items-center gap-3">
                              <span className="w-8 h-8 flex items-center justify-center bg-gray-900 text-white rounded-full font-bold text-sm">{pageIndex + 1}</span>
                              <h3 className="font-bold text-gray-700">{tr('sheet')} {pageIndex + 1}</h3>
-                        </div>
-                        <div className="flex gap-3">
-                            <button onClick={() => navigator.clipboard.writeText(promptText)} className="px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-bold transition-colors">{tr('copyPrompts')}</button>
-                            <div className="w-px h-8 bg-gray-200 mx-2"></div>
-                            <button onClick={() => handleDownload(pageIndex)} className="flex items-center px-5 py-2 bg-gray-900 text-white hover:bg-black rounded-lg text-xs font-bold shadow-lg transition-transform hover:-translate-y-0.5">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4-4m4 4v12" /></svg>
-                                {tr('downloadImage')}
-                            </button>
                         </div>
                     </div>
 

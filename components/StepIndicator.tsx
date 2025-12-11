@@ -6,9 +6,10 @@ import { t } from '../locales';
 interface StepIndicatorProps {
   currentStep: WorkflowStep;
   lang: Language;
+  onStepClick?: (step: WorkflowStep) => void;
 }
 
-const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, lang }) => {
+const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, lang, onStepClick }) => {
   const tr = (key: any) => t(lang, key);
   
   const steps = [
@@ -28,13 +29,14 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, lang }) => {
             <div key={step.id} className="flex items-center">
               <div 
                 className={`
-                  flex items-center px-4 py-1.5 rounded-full text-xs font-bold transition-all
+                  flex items-center px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer
                   ${isActive 
                     ? 'bg-purple-600 text-white shadow-lg scale-105' 
                     : isCompleted 
                       ? 'bg-purple-100 text-purple-600 border border-purple-200' 
                       : 'bg-gray-100 text-gray-400 border border-gray-200'}
                 `}
+                onClick={() => onStepClick && (isCompleted || isActive) && onStepClick(step.id)}
               >
                 <span className="mr-2">{idx + 1}</span>
                 {step.label}

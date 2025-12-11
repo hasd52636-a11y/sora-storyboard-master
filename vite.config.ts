@@ -3,7 +3,24 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
+    // 加载所有可能的环境变量文件，包括.env.local
     const env = loadEnv(mode, '.', '');
+    
+    // 如果API_KEY不存在，尝试从.env.local文件读取
+    if (!env.API_KEY) {
+      try {
+        const fs = require('fs');
+        const dotenv = require('dotenv');
+        const envLocalPath = path.resolve(__dirname, '.env.local');
+        if (fs.existsSync(envLocalPath)) {
+          const envLocal = dotenv.parse(fs.readFileSync(envLocalPath));
+          env.API_KEY = envLocal.API_KEY || env.API_KEY;
+        }
+      } catch (e) {
+        console.log('Failed to load .env.local:', e);
+      }
+    }
+    
     return {
       server: {
         port: 3000,

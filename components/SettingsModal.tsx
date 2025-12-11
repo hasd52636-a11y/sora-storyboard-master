@@ -17,22 +17,21 @@ interface ExtendedPreset extends ApiPreset {
 
 const LLM_PRESETS: ExtendedPreset[] = [
   { id: 'gemini', name: 'Google Gemini (Official)', nameZh: '谷歌 Gemini (官方)', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash' },
-  { id: 'deepseek-off', name: 'DeepSeek (Official)', nameZh: 'DeepSeek (官方源)', provider: 'openai', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
-  { id: 'deepseek-silicon', name: 'DeepSeek (SiliconFlow)', nameZh: 'DeepSeek (硅基流动)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'deepseek-ai/DeepSeek-R1' },
+  { id: 'deepseek', name: 'DeepSeek (Official)', nameZh: 'DeepSeek (官方)', provider: 'openai', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
   { id: 'zhipu', name: 'Zhipu AI (ChatGLM)', nameZh: '智谱清言 (ChatGLM)', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'glm-4' },
   { id: 'qwen', name: 'Qwen / Tongyi (Aliyun)', nameZh: '通义千问 (阿里云)', provider: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen-plus' },
   { id: 'moonshot', name: 'Moonshot (Kimi)', nameZh: '月之暗面 (Kimi)', provider: 'openai', baseUrl: 'https://api.moonshot.cn/v1', defaultModel: 'moonshot-v1-8k' },
   { id: 'doubao', name: 'Doubao (Volcengine)', nameZh: '豆包 (火山引擎)', provider: 'openai', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', defaultModel: 'doubao-pro-32k' },
   { id: 'hunyuan', name: 'Hunyuan (Tencent)', nameZh: '腾讯混元', provider: 'openai', baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', defaultModel: 'hunyuan-standard' },
-  { id: 'silicon-gen', name: 'SiliconFlow (General)', nameZh: '硅基流动 (通用)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: '' },
+  { id: 'siliconflow', name: 'SiliconFlow', nameZh: '硅基流动', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'THUDM/GLM-Z1-9B-0414' },
   { id: 'custom', name: 'Custom / Other', nameZh: '自定义 / 其他', provider: 'openai', baseUrl: '', defaultModel: '' },
 ];
 
 const IMG_PRESETS: ExtendedPreset[] = [
   { id: 'gemini-img', name: 'Google Gemini Image', nameZh: '谷歌 Gemini 绘图', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash-image' },
   { id: 'dalle', name: 'OpenAI DALL-E 3', nameZh: 'OpenAI DALL-E 3', provider: 'openai', baseUrl: 'https://api.openai.com/v1', defaultModel: 'dall-e-3' },
-  { id: 'silicon-flux', name: 'SiliconFlow (Flux)', nameZh: '硅基流动 (Flux)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'black-forest-labs/FLUX.1-schnell' },
-  { id: 'silicon-sd', name: 'SiliconFlow (Stable Diffusion)', nameZh: '硅基流动 (Stable Diffusion)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'stabilityai/stable-diffusion-3-5-large' },
+  { id: 'silicon-flux', name: 'SiliconFlow (Flux)', nameZh: '硅基流动 (Flux绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'black-forest-labs/FLUX.1-schnell' },
+  { id: 'silicon-sd', name: 'SiliconFlow (Stable Diffusion)', nameZh: '硅基流动 (SD绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'stabilityai/stable-diffusion-3-5-large' },
   { id: 'zhipu-img', name: 'Zhipu CogView', nameZh: '智谱 CogView', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'cogview-3' },
   { id: 'jimeng', name: 'Jimeng (ByteDance)', nameZh: '即梦 (字节跳动)', provider: 'openai', baseUrl: 'https://api.jimeng.com/v1', defaultModel: 'jimeng-2.0' },
   { id: 'custom-img', name: 'Custom / Other', nameZh: '自定义 / 其他', provider: 'openai', baseUrl: '', defaultModel: '' },
@@ -81,6 +80,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
     const preset = list.find(p => p.id === presetId);
     if (!preset) return;
 
+    // 检查已验证列表中是否有该预设的配置
+    const verifiedConfig = verifiedList[type].find(v => 
+      v.presetName === (isZh && preset.nameZh ? preset.nameZh : preset.name)
+    );
+
     setLocalSettings(prev => ({
       ...prev,
       [type]: {
@@ -88,7 +92,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
         provider: preset.provider,
         baseUrl: preset.baseUrl,
         model: preset.defaultModel,
-        presetName: isZh && preset.nameZh ? preset.nameZh : preset.name
+        presetName: isZh && preset.nameZh ? preset.nameZh : preset.name,
+        // 如果有已验证的配置，使用其API密钥，否则重置为空
+        apiKey: verifiedConfig?.apiKey || ''
       }
     }));
   };
@@ -113,7 +119,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
        });
     }
 
-    setTimeout(() => setTestStatus(prev => ({...prev, [type]: 'idle'})), 3000);
+    // 测试成功后按钮保持绿色，不自动重置状态
+    if (!success) {
+      setTimeout(() => setTestStatus(prev => ({...prev, [type]: 'idle'})), 3000);
+    }
   };
 
   const applyVerifiedConfig = (type: 'llm' | 'image', config: ApiConfig) => {
@@ -136,11 +145,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
       return (
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-5">
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                <h3 className="text-sm font-black uppercase text-purple-600 tracking-wide">{title}</h3>
-                <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${testStatus[type] === 'success' ? 'bg-green-100 text-green-700' : testStatus[type] === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {testStatus[type] === 'success' ? tr('testSuccess') : testStatus[type] === 'failed' ? tr('testFailed') : 'Not Tested'}
+                    <h3 className="text-sm font-black uppercase text-purple-600 tracking-wide">{title}</h3>
                 </div>
-            </div>
 
             {/* Presets Dropdown */}
             <div>
@@ -148,7 +154,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 <select 
                     className="w-full p-2 text-sm rounded-lg border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none"
                     onChange={(e) => handlePresetSelect(type, e.target.value)}
-                    value={presets.find(p => p.baseUrl === config.baseUrl && p.provider === config.provider && (p.defaultModel === config.model || config.model))?.id || 'custom'}
+                    value={presets.find(p => 
+                        // 优先通过presetName匹配，更准确
+                        (config.presetName && (isZh && p.nameZh === config.presetName || p.name === config.presetName)) ||
+                        // 如果没有presetName或匹配失败，回退到通过baseUrl和model匹配
+                        (p.baseUrl === config.baseUrl && p.model === config.model) ||
+                        // 最后检查是否为自定义类型
+                        (config.presetName?.includes('custom') && p.id === 'custom')
+                    )?.id || 'custom'}
                 >
                     {presets.map(p => (
                         <option key={p.id} value={p.id}>
@@ -202,7 +215,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                         </button>
                         <button 
                             onClick={() => runApiTest(type)}
-                            className="px-4 py-2 bg-gray-900 text-white rounded-lg text-xs font-bold hover:bg-black transition-colors min-w-[80px]"
+                            className={`px-4 py-2 rounded-lg text-xs font-bold min-w-[80px] transition-colors ${testStatus[type] === 'loading' ? 'bg-yellow-600 text-white' : testStatus[type] === 'success' ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-900 text-white hover:bg-black'}`}
                         >
                             {testStatus[type] === 'loading' ? '...' : tr('testApi')}
                         </button>

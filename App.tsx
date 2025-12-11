@@ -109,39 +109,38 @@ const App: React.FC = () => {
       setCurrentStep(WorkflowStep.EDITOR);
       setIsLoading(false);
       
+      // 并发生成图片，限制并发数为3
       const framesWithImages = [...initialFrames];
-      for (let i = 0; i < framesWithImages.length; i++) {
-        try {
-          // 为避免生图API触发429错误，增加更合理的延迟策略
-          // 第一张图无需延迟，后续图片根据索引增加延迟时间
-          const delayTime = i > 0 ? 2000 + (i * 500) : 0; // 基础2秒延迟，每增加一张增加500毫秒
-          if (delayTime > 0) {
-            await new Promise(resolve => setTimeout(resolve, delayTime));
+      const concurrency = 3;
+      const results = await Promise.all(
+        framesWithImages.map(async (frame, i) => {
+          try {
+            // 使用并发控制，每3个一组延迟执行
+            const delayTime = Math.floor(i / concurrency) * 1000;
+            if (delayTime > 0) {
+              await new Promise(resolve => setTimeout(resolve, delayTime));
+            }
+            
+            const url = await generateFrameImage(frame, config.style.name, appSettings);
+            return { index: i, url, error: false };
+          } catch (e) {
+            console.error(`生成第${i+1}张分镜图失败:`, e);
+            return { index: i, url: undefined, error: true };
           }
-          
-          const url = await generateFrameImage(framesWithImages[i], config.style.name, appSettings);
-          framesWithImages[i] = { ...framesWithImages[i], imageUrl: url, isGenerating: false };
-          setFrames([...framesWithImages]); 
-          
-          // 当生成6张或9张图片后停掉动效，先展示已生成的图片
-          if ((i + 1) === 6 || (i + 1) === 9) {
-            setIsGlobalLoading(false);
-          }
-        } catch (e) {
-          console.error(`生成第${i+1}张分镜图失败:`, e);
-          // 单个分镜生成失败时，标记为生成失败但继续生成其他分镜
-          framesWithImages[i] = { 
-            ...framesWithImages[i], 
-            imageUrl: undefined, 
-            isGenerating: false, 
-            generationError: true
-          };
-          setFrames([...framesWithImages]);
-          
-          // 生成失败后增加额外延迟，避免连续失败
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
+        })
+      );
+      
+      // 更新所有生成结果
+      for (const result of results) {
+        framesWithImages[result.index] = {
+          ...framesWithImages[result.index],
+          imageUrl: result.error ? undefined : result.url,
+          isGenerating: false,
+          generationError: result.error
+        };
       }
+      
+      setFrames([...framesWithImages]);
       
       // 确保所有分镜生成完成后隐藏全局动效
       setIsGlobalLoading(false);
@@ -204,33 +203,30 @@ const App: React.FC = () => {
 
       {/* Header */}
       <header className="h-20 flex items-center justify-between px-6 bg-white/70 backdrop-blur-md border-b border-white/50 sticky top-0 z-50 shadow-sm">
-        {/* Logo and Contact Info Section */}
-        <div className="flex items-center gap-6 flex-1 justify-between">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-gradient-to-tr from-purple-700 to-indigo-600 rounded-lg shadow-lg flex items-center justify-center text-white font-black text-sm tracking-tight transform hover:scale-105 transition-transform">
-                    SM
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight text-gray-800 leading-none">
-                      {tr('appName')}
-                  </h1>
-                  <span className="text-[10px] text-purple-600 font-semibold tracking-wider">STORYBOARD MASTER</span>
-                </div>
+        {/* Logo Section */}
+        <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gradient-to-tr from-purple-700 to-indigo-600 rounded-lg shadow-lg flex items-center justify-center text-white font-black text-sm tracking-tight transform hover:scale-105 transition-transform">
+                SM
             </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-gray-800 leading-none">
+                  {tr('appName')}
+              </h1>
+              <span className="text-[10px] text-purple-600 font-semibold tracking-wider">STORYBOARD MASTER</span>
+            </div>
+        </div>
 
-            {/* Contact Info - 放在logo栏中间突出显示 */}
-            <div className="hidden lg:flex flex-col items-center justify-center flex-1 max-w-2xl">
-                <div className="bg-purple-50 px-8 py-3 rounded-full border border-purple-200 flex items-center justify-center gap-6 text-base font-bold text-purple-900 opacity-100 shadow-md w-full">
-                    <span className="pointer-events-auto cursor-text">{CONTACT_INFO.email}</span>
-                    <span className="w-1 h-4 bg-purple-400"></span>
-                    <span className="pointer-events-auto cursor-text">{CONTACT_INFO.web}</span>
-                </div>
+        {/* Contact Info - 居中显示 */}
+        <div className="hidden lg:flex items-center justify-center flex-1">
+            <div className="bg-purple-50 px-8 py-3 rounded-full border border-purple-200 flex items-center justify-center gap-6 text-base font-bold text-purple-900 opacity-100 shadow-md">
+                <span className="pointer-events-auto cursor-text">{CONTACT_INFO.email}</span>
+                <span className="w-1 h-4 bg-purple-400"></span>
+                <span className="pointer-events-auto cursor-text">{CONTACT_INFO.web}</span>
             </div>
         </div>
         
         {/* Right Section: Buttons */}
-        <div className="flex items-center gap-3 ml-auto">
+        <div className="flex items-center gap-3">
              {/* Language Switch */}
              <button 
                 onClick={toggleLanguage}
@@ -242,7 +238,7 @@ const App: React.FC = () => {
              {/* Settings Button */}
              <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-all shadow-lg hover:shadow-gray-500/30"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-50 text-purple-700 text-sm font-bold hover:bg-purple-100 transition-all"
              >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -279,6 +275,7 @@ const App: React.FC = () => {
             onNext={startGeneration} 
             isLoading={isLoading}
             lang={appSettings.language}
+            setCurrentStep={setCurrentStep}
           />
         )}
         {currentStep === WorkflowStep.EDITOR && (
@@ -293,6 +290,7 @@ const App: React.FC = () => {
             settings={appSettings}
             isGlobalLoading={isGlobalLoading}
             updateConfig={handleConfigUpdate}
+            setCurrentStep={setCurrentStep}
           />
         )}
         {currentStep === WorkflowStep.EXPORT && (
@@ -301,6 +299,7 @@ const App: React.FC = () => {
             frames={frames}
             onBack={() => setCurrentStep(WorkflowStep.EDITOR)}
             lang={appSettings.language}
+            setCurrentStep={setCurrentStep}
           />
         )}
       </main>

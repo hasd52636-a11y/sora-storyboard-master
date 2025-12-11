@@ -15,8 +15,9 @@ interface EditorProps {
     regenerateImage: (frameId: string) => Promise<void>;
     lang: Language;
     settings: AppSettings;
-    isGlobalLoading?: boolean;
-    updateConfig?: (updates: Partial<ProjectConfig>) => void;
+    isGlobalLoading: boolean;
+    updateConfig: (updates: Partial<ProjectConfig>) => void;
+    setCurrentStep: (step: WorkflowStep) => void;
 }
 
 // Internal Component for Prompt Boxes
@@ -112,7 +113,7 @@ const PromptCard = ({
 };
 
 
-const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, onBack, regenerateImage, lang, settings, isGlobalLoading, updateConfig }) => {
+const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, onBack, regenerateImage, lang, settings, isGlobalLoading, updateConfig, setCurrentStep }) => {
     const [activeFrameIndex, setActiveFrameIndex] = useState(0);
     const activeFrame = frames[activeFrameIndex];
     const tr = (key: any) => t(lang, key);
@@ -484,7 +485,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
           </div>
         )}
         
-        <StepIndicator currentStep={WorkflowStep.EDITOR} lang={lang} />
+        <StepIndicator currentStep={WorkflowStep.EDITOR} lang={lang} onStepClick={setCurrentStep} />
       
       {/* Toast Notification - 提高z-index确保显示在动画之上 */}
       {toastMsg && (

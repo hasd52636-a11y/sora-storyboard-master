@@ -9,9 +9,10 @@ interface SetupProps {
   onNext: () => void;
   isLoading: boolean;
   lang: Language;
+  setCurrentStep: (step: WorkflowStep) => void;
 }
 
-const Setup: React.FC<SetupProps> = ({ config, updateConfig, onNext, isLoading, lang }) => {
+const Setup: React.FC<SetupProps> = ({ config, updateConfig, onNext, isLoading, lang, setCurrentStep }) => {
   const tr = (key: any) => t(lang, key);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,7 +30,7 @@ const Setup: React.FC<SetupProps> = ({ config, updateConfig, onNext, isLoading, 
 
   return (
     <div className="w-full max-w-5xl mx-auto p-6 space-y-6 animate-fade-in-up">
-      <StepIndicator currentStep={WorkflowStep.SETUP} lang={lang} />
+      <StepIndicator currentStep={WorkflowStep.SETUP} lang={lang} onStepClick={setCurrentStep} />
       
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold text-gray-800 tracking-tight">{tr('setupTitle')}</h2>

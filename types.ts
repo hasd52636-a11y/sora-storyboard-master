@@ -104,18 +104,18 @@ export const CONTACT_INFO = {
 export const DEFAULT_SETTINGS: AppSettings = {
   language: 'zh', 
   llm: {
-    provider: 'gemini',
-    apiKey: '', 
-    baseUrl: '',
-    model: 'gemini-2.5-flash',
-    presetName: 'Google Gemini'
+    provider: 'openai',
+    apiKey: '',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    model: 'THUDM/GLM-Z1-9B-0414',
+    presetName: '硅基流动'
   },
   image: {
-    provider: 'gemini',
+    provider: 'openai',
     apiKey: '',
-    baseUrl: '',
-    model: 'gemini-2.5-flash-image',
-    presetName: 'Google Gemini'
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    model: 'black-forest-labs/FLUX.1-schnell',
+    presetName: '硅基流动 (Flux绘图)'
   }
 };
 
