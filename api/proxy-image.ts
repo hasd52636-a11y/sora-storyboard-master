@@ -2,6 +2,21 @@ export const config = {
   runtime: 'edge',
 };
 
+// 导入Response构造函数
+import { Response } from 'node-fetch';
+
+// 定义请求体接口
+interface ProxyImageRequestBody {
+  prompt?: string;
+  [key: string]: any;
+}
+
+// 定义硅基流动API响应接口
+interface SiliconFlowImageResponse {
+  data?: Array<{ url?: string }>;
+  error?: { message?: string };
+}
+
 // 1. 定义 CORS 头部
 // 本地测试时使用通配符，生产环境请替换为您网站的实际域名 (含 https://)
 const CORS_HEADERS = {
@@ -51,7 +66,7 @@ export default async function handler(request: Request): Promise<Response> {
 
     try {
         // 注意：req.json() 只能调用一次，这里使用健壮性处理
-        const requestBody = await request.json().catch(() => ({}));
+        const requestBody = await request.json().catch(() => ({})) as ProxyImageRequestBody;
         const { prompt } = requestBody;
 
         if (!prompt) {

@@ -1,7 +1,10 @@
 // 环境变量测试API
 // 用于验证环境变量是否正确配置和传递
 
-export const config = { runtime: 'edge' }
+export const config = { runtime: 'edge' };
+
+// 导入Response构造函数
+import { Response } from 'node-fetch';
 
 // 1. 定义 CORS 头部
 // 本地测试时使用通配符，生产环境请替换为您网站的实际域名 (含 https://)

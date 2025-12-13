@@ -3,6 +3,24 @@ export const config = {
   maxDuration: 30
 };
 
+// 导入Response构造函数
+import { Response } from 'node-fetch';
+
+// 定义请求体接口
+interface ImageRequestBody {
+  prompt?: string;
+  size?: string;
+  steps?: number;
+  n?: number;
+  [key: string]: any;
+}
+
+// 定义硅基流动API响应接口
+interface SiliconFlowImageResponse {
+  data?: Array<{ url?: string }>;
+  error?: { message?: string };
+}
+
 // 1. 定义 CORS 头部
 // 本地测试时使用通配符，生产环境请替换为您网站的实际域名 (含 https://)
 const CORS_HEADERS = {
@@ -49,7 +67,7 @@ export default async function handler(req: Request) {
         }
 
         // 注意：req.json() 只能调用一次，这里使用健壮性处理
-        const body = await req.json().catch(() => ({}));
+        const body = await req.json().catch(() => ({})) as ImageRequestBody;
         const { prompt, size = '512x512', steps = 30, n = 1 } = body;
 
         const sfResponse = await fetch('https://api.siliconflow.cn/v1/images/generations', {
@@ -73,7 +91,7 @@ export default async function handler(req: Request) {
                 : `Image generation failed with status ${status} (${statusText}).`;
             
             try {
-                const sfError = await sfResponse.json().catch(() => ({}));
+                const sfError = await sfResponse.json().catch(() => ({})) as SiliconFlowImageResponse;
                 return withCORSHeaders(new Response(JSON.stringify({
                     error: sfError.error || { message: warning },
                     rateLimited: status === 429,
@@ -88,7 +106,7 @@ export default async function handler(req: Request) {
             }
         }
 
-        const sf = await sfResponse.json();
+        const sf = await sfResponse.json() as SiliconFlowImageResponse;
         const url = sf.data?.[0]?.url;
 
         if (!url) {

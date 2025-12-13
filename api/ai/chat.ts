@@ -3,6 +3,16 @@ export const config = {
   maxDuration: 30
 };
 
+// 导入Response构造函数
+import { Response } from 'node-fetch';
+
+// 定义请求体接口
+interface ChatRequestBody {
+  messages?: Array<{ role: string; content: string }>;
+  frameCount?: number;
+  [key: string]: any;
+}
+
 // 1. 定义 CORS 头部
 // 本地测试时使用通配符，生产环境请替换为您网站的实际域名 (含 https://)
 const CORS_HEADERS = {
@@ -55,7 +65,7 @@ export default async function handler(req: Request) {
     const ENDPOINT = 'https://api.siliconflow.cn/v1/chat/completions'
     
     // 注意：req.json() 只能调用一次，这里使用健壮性处理
-    const body = await req.json().catch(() => ({})); 
+    const body = await req.json().catch(() => ({})) as ChatRequestBody; 
 
     try {
         // 移除流式响应，使用常规请求
