@@ -12,10 +12,14 @@
     },
     {
       "use": "@vercel/node",
-      "src": "api/**/*.ts",
+      "src": "api/ai/*.ts",
       "config": {
         "maxDuration": 30
       }
+    },
+    {
+      "use": "@vercel/edge",
+      "src": "api/proxy-image.ts"
     }
   ],
   "rewrites": [
