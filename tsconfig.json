@@ -25,5 +25,10 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": ["./src/**/*", "./components/**/*", "./App.tsx", "./index.tsx"],
+  "exclude": ["./api/**/*"]
 }
+
+// tsconfig.api.json (for Vercel API functions)
+// This file should be created to handle API compilation separately
