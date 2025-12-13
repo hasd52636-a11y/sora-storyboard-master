@@ -9,6 +9,13 @@
         "outputDirectory": "dist",
         "installCommand": "npm install"
       }
+    },
+    {
+      "use": "@vercel/node",
+      "src": "api/**/*.ts",
+      "config": {
+        "maxDuration": 30
+      }
     }
   ],
   "rewrites": [
@@ -21,11 +28,6 @@
       "destination": "/index.html"
     }
   ],
-  "functions": {
-    "api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
   "headers": [
     {
       "source": "(.*)",
