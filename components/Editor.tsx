@@ -144,10 +144,9 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                     
                     // 模拟自动识别主体（实际项目中应调用AI接口）
                     setTimeout(() => {
-                        // 假设识别到两个主体
+                        // 假设识别到一个主要主体
                         const mockSubjects = [
-                            { x: 20, y: 30, width: 80, height: 100, color: '#FF5733' },
-                            { x: 120, y: 40, width: 70, height: 90, color: '#33FF57' }
+                            { x: 20, y: 30, width: 80, height: 100, color: '#FF5733' }
                         ];
                         setDetectedSubjects(mockSubjects);
                     }, 1000);
@@ -181,24 +180,170 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
          setSelectionEnd({ x, y });
      };
      
-     // 处理鼠标释放事件，完成选择区域
-     const handleRefImageMouseUp = () => {
-         if (!isSelecting) return;
-         
-         const x = Math.min(selectionStart.x, selectionEnd.x);
-         const y = Math.min(selectionStart.y, selectionEnd.y);
-         const width = Math.abs(selectionStart.x - selectionEnd.x);
-         const height = Math.abs(selectionStart.y - selectionEnd.y);
-         
-         // 只有当选择区域有一定大小时才保存
-         if (width > 10 && height > 10) {
-             setSelectedArea({ x, y, width, height });
-         } else {
-             setSelectedArea(null);
-         }
-         
-         setIsSelecting(false);
-     };
+     // 处理选择框调节
+    const [resizing, setResizing] = useState(false);
+    const [resizingHandle, setResizingHandle] = useState('');
+    const [dragging, setDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    
+    // 处理鼠标释放事件，完成选择区域
+    const handleRefImageMouseUp = () => {
+        if (!isSelecting) return;
+        
+        const x = Math.min(selectionStart.x, selectionEnd.x);
+        const y = Math.min(selectionStart.y, selectionEnd.y);
+        const width = Math.abs(selectionStart.x - selectionEnd.x);
+        const height = Math.abs(selectionStart.y - selectionEnd.y);
+        
+        // 只有当选择区域有一定大小时才保存
+        if (width > 10 && height > 10) {
+            setSelectedArea({ x, y, width, height });
+        } else {
+            setSelectedArea(null);
+        }
+        
+        setIsSelecting(false);
+    };
+    
+    // 处理选择框拖动开始
+    const handleSelectionDragStart = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!selectedArea) return;
+        
+        setDragging(true);
+        const rect = referenceImageRef.current?.getBoundingClientRect();
+        if (rect) {
+            setDragOffset({
+                x: e.clientX - (rect.left + selectedArea.x),
+                y: e.clientY - (rect.top + selectedArea.y)
+            });
+        }
+    };
+    
+    // 处理选择框拖动移动
+    const handleSelectionDragMove = (e: React.MouseEvent) => {
+        if (!dragging || !selectedArea || !referenceImageRef.current) return;
+        
+        const rect = referenceImageRef.current.getBoundingClientRect();
+        let newX = e.clientX - rect.left - dragOffset.x;
+        let newY = e.clientY - rect.top - dragOffset.y;
+        
+        // 限制在图片范围内
+        newX = Math.max(0, Math.min(newX, rect.width - selectedArea.width));
+        newY = Math.max(0, Math.min(newY, rect.height - selectedArea.height));
+        
+        setSelectedArea({ ...selectedArea, x: newX, y: newY });
+    };
+    
+    // 处理选择框拖动结束
+    const handleSelectionDragEnd = () => {
+        setDragging(false);
+    };
+    
+    // 处理选择框调节开始
+    const handleResizeStart = (e: React.MouseEvent, handle: string) => {
+        e.stopPropagation();
+        setResizing(true);
+        setResizingHandle(handle);
+    };
+    
+    // 处理选择框调节移动
+    const handleResizeMove = (e: React.MouseEvent) => {
+        if (!resizing || !resizingHandle || !selectedArea || !referenceImageRef.current) return;
+        
+        const rect = referenceImageRef.current.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        
+        let newX = selectedArea.x;
+        let newY = selectedArea.y;
+        let newWidth = selectedArea.width;
+        let newHeight = selectedArea.height;
+        
+        switch (resizingHandle) {
+            case 'nw':
+                newX = clientX;
+                newY = clientY;
+                newWidth = selectedArea.x + selectedArea.width - clientX;
+                newHeight = selectedArea.y + selectedArea.height - clientY;
+                break;
+            case 'n':
+                newY = clientY;
+                newHeight = selectedArea.y + selectedArea.height - clientY;
+                break;
+            case 'ne':
+                newY = clientY;
+                newWidth = clientX - selectedArea.x;
+                newHeight = selectedArea.y + selectedArea.height - clientY;
+                break;
+            case 'e':
+                newWidth = clientX - selectedArea.x;
+                break;
+            case 'se':
+                newWidth = clientX - selectedArea.x;
+                newHeight = clientY - selectedArea.y;
+                break;
+            case 's':
+                newHeight = clientY - selectedArea.y;
+                break;
+            case 'sw':
+                newX = clientX;
+                newWidth = selectedArea.x + selectedArea.width - clientX;
+                newHeight = clientY - selectedArea.y;
+                break;
+            case 'w':
+                newX = clientX;
+                newWidth = selectedArea.x + selectedArea.width - clientX;
+                break;
+        }
+        
+        // 确保最小尺寸
+        newWidth = Math.max(20, newWidth);
+        newHeight = Math.max(20, newHeight);
+        
+        // 限制在图片范围内
+        if (resizingHandle.includes('w')) newX = Math.min(newX, selectedArea.x + selectedArea.width - 20);
+        if (resizingHandle.includes('n')) newY = Math.min(newY, selectedArea.y + selectedArea.height - 20);
+        if (resizingHandle.includes('e')) newWidth = Math.min(newWidth, rect.width - newX);
+        if (resizingHandle.includes('s')) newHeight = Math.min(newHeight, rect.height - newY);
+        
+        newX = Math.max(0, newX);
+        newY = Math.max(0, newY);
+        
+        setSelectedArea({ x: newX, y: newY, width: newWidth, height: newHeight });
+    };
+    
+    // 处理选择框调节结束
+    const handleResizeEnd = () => {
+        setResizing(false);
+        setResizingHandle('');
+    };
+    
+    // 添加全局事件监听
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (dragging) {
+                handleSelectionDragMove(e as any);
+            } else if (resizing) {
+                handleResizeMove(e as any);
+            }
+        };
+        
+        const handleMouseUp = () => {
+            handleSelectionDragEnd();
+            handleResizeEnd();
+        };
+        
+        if (dragging || resizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+        
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [dragging, resizing]);
     
     // 清除选择区域
     const clearSelection = () => {
@@ -217,13 +362,116 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         setSelectedResult(null);
         
         try {
-            // 模拟API调用延迟
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // 构建抠图提示词
+            let maskPrompt = `请精确抠出图片中的主要主体，生成透明背景的图片。`;
             
-            // 这里应该调用实际的AI抠图API，现在返回模拟结果
-            const mockMaskImage = config.referenceImage; // 实际项目中应该是API返回的抠图结果
-            setGeneratedMaskImage(mockMaskImage);
-            setSelectedResult(mockMaskImage);
+            // 如果用户选择了特定区域，添加区域信息
+            if (selectedArea || detectedSubjects.length > 0) {
+                const targetArea = selectedArea || detectedSubjects[0];
+                // 将坐标转换为更直观的描述
+                const centerX = Math.round(targetArea.x + targetArea.width / 2);
+                const centerY = Math.round(targetArea.y + targetArea.height / 2);
+                maskPrompt += ` 请重点关注图片中央偏${centerX < 200 ? '左' : '右'}${centerY < 100 ? '上' : '下'}位置，大约占据图片${Math.round(targetArea.width / 384 * 100)}%宽度和${Math.round(targetArea.height / 384 * 100)}%高度的区域中的物体。`;
+            }
+            
+            // 添加额外的抠图要求
+            maskPrompt += ` 要求：1. 精确抠出主体，保留所有细节；2. 确保主体边缘光滑自然；3. 生成的图片背景完全透明；4. 保持原始图像的清晰度；5. 输出为PNG格式。`;
+            
+            // 根据用户设置选择合适的图像API
+            let response;
+            if (settings.image.provider === 'gemini') {
+                // 使用Gemini API
+                response = await fetchRetry('https://generativelanguage.googleapis.com/v1beta/models/' + settings.image.defaultModel + ':generateContent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                inlineData: {
+                                    mimeType: 'image/png',
+                                    data: config.referenceImage.split(',')[1] // 移除Data URL前缀
+                                }
+                            }, {
+                                text: maskPrompt
+                            }]
+                        }],
+                        generationConfig: {
+                            responseMimeType: 'image/png',
+                            responseImageSize: '384x384'
+                        }
+                    })
+                });
+            } else if (settings.image.provider === 'openai' || settings.image.baseUrl) {
+                // 使用OpenAI兼容API
+                const baseUrl = settings.image.baseUrl || 'https://api.openai.com/v1';
+                response = await fetchRetry(baseUrl + '/images/generations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        prompt: maskPrompt,
+                        size: '384x384',
+                        n: 1,
+                        model: settings.image.defaultModel || 'dall-e-3',
+                        reference_image: config.referenceImage // 添加参考图片
+                    })
+                });
+            } else {
+                // 默认使用硅基流动API
+                response = await fetchRetry('/api/ai/image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-SF-Key': settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        prompt: maskPrompt,
+                        size: '384x384',
+                        steps: 30,
+                        n: 1,
+                        reference_image: config.referenceImage // 添加参考图片
+                    })
+                });
+            }
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`抠图API错误: ${errorData.error || response.statusText}`);
+            }
+            
+            const data = await response.json();
+            let maskImageUrl;
+            
+            if (settings.image.provider === 'gemini') {
+                // 处理Gemini API响应
+                if (data.candidates?.[0]?.content?.parts) {
+                    for (const part of data.candidates[0].content.parts) {
+                        if (part.inlineData && part.inlineData.data) {
+                            maskImageUrl = 'data:' + part.inlineData.mimeType + ';base64,' + part.inlineData.data;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 处理OpenAI兼容API响应
+                if (data.data?.[0]?.url) {
+                    maskImageUrl = data.data[0].url;
+                } else if (data.data?.[0]?.b64_json) {
+                    maskImageUrl = 'data:image/png;base64,' + data.data[0].b64_json;
+                }
+            }
+            
+            if (maskImageUrl) {
+                setGeneratedMaskImage(maskImageUrl);
+                setSelectedResult(maskImageUrl);
+            } else {
+                throw new Error('抠图API返回中没有图片数据');
+            }
         } catch (error) {
             console.error('生成抠图失败:', error);
             setAlertModalMessage('生成抠图失败，请重试');
@@ -242,17 +490,117 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         setSelectedResult(null);
         
         try {
-            // 模拟API调用延迟
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            // 构建三视图生成提示词
+            let viewsPrompt = `请根据提供的图片，生成该物体的三个正交视图：前视图、侧视图和后视图。`;
             
-            // 这里应该调用实际的AI生成三视图API，现在返回模拟结果
-            const mockViews = [
-                config.referenceImage, // 前视图
-                config.referenceImage, // 侧视图
-                config.referenceImage  // 后视图
-            ];
-            setGeneratedViews(mockViews);
-            setSelectedResult(mockViews[0]);
+            // 如果用户选择了特定区域，添加区域信息
+            if (selectedArea || detectedSubjects.length > 0) {
+                const targetArea = selectedArea || detectedSubjects[0];
+                // 将坐标转换为更直观的描述
+                const centerX = Math.round(targetArea.x + targetArea.width / 2);
+                const centerY = Math.round(targetArea.y + targetArea.height / 2);
+                viewsPrompt += ` 请重点关注图片中央偏${centerX < 200 ? '左' : '右'}${centerY < 100 ? '上' : '下'}位置，大约占据图片${Math.round(targetArea.width / 384 * 100)}%宽度和${Math.round(targetArea.height / 384 * 100)}%高度的区域中的物体。`;
+            }
+            
+            // 添加额外的三视图要求
+            viewsPrompt += ` 要求：1. 三个视图必须是正交投影（前视图、侧视图、后视图）；2. 保持物体的比例和特征一致；3. 使用简洁的线条绘制；4. 白色背景；5. 清晰标注每个视图的名称；6. 三个视图垂直排列在一张图片中。`;
+            
+            // 根据用户设置选择合适的图像API
+            let response;
+            if (settings.image.provider === 'gemini') {
+                // 使用Gemini API
+                response = await fetchRetry('https://generativelanguage.googleapis.com/v1beta/models/' + settings.image.defaultModel + ':generateContent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                inlineData: {
+                                    mimeType: 'image/png',
+                                    data: config.referenceImage.split(',')[1] // 移除Data URL前缀
+                                }
+                            }, {
+                                text: viewsPrompt
+                            }]
+                        }],
+                        generationConfig: {
+                            responseMimeType: 'image/png',
+                            responseImageSize: '384x512'
+                        }
+                    })
+                });
+            } else if (settings.image.provider === 'openai' || settings.image.baseUrl) {
+                // 使用OpenAI兼容API
+                const baseUrl = settings.image.baseUrl || 'https://api.openai.com/v1';
+                response = await fetchRetry(baseUrl + '/images/generations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        prompt: viewsPrompt,
+                        size: '384x512',
+                        n: 1,
+                        model: settings.image.defaultModel || 'dall-e-3',
+                        reference_image: config.referenceImage // 添加参考图片
+                    })
+                });
+            } else {
+                // 默认使用硅基流动API
+                response = await fetchRetry('/api/ai/image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-SF-Key': settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        prompt: viewsPrompt,
+                        size: '384x512', // 垂直方向较长，适合排列三个视图
+                        steps: 30,
+                        reference_image: config.referenceImage // 添加参考图片
+                        n: 1
+                    })
+                });
+            }
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`三视图生成API错误: ${errorData.error || response.statusText}`);
+            }
+            
+            const data = await response.json();
+            let viewsImageUrl;
+            
+            if (settings.image.provider === 'gemini') {
+                // 处理Gemini API响应
+                if (data.candidates?.[0]?.content?.parts) {
+                    for (const part of data.candidates[0].content.parts) {
+                        if (part.inlineData && part.inlineData.data) {
+                            viewsImageUrl = 'data:' + part.inlineData.mimeType + ';base64,' + part.inlineData.data;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 处理OpenAI兼容API响应
+                if (data.data?.[0]?.url) {
+                    viewsImageUrl = data.data[0].url;
+                } else if (data.data?.[0]?.b64_json) {
+                    viewsImageUrl = 'data:image/png;base64,' + data.data[0].b64_json;
+                }
+            }
+            
+            if (viewsImageUrl) {
+                // 对于三视图，我们只生成一张包含三个视图的图片
+                setGeneratedViews([viewsImageUrl]);
+                setSelectedResult(viewsImageUrl);
+            } else {
+                throw new Error('三视图生成API返回中没有图片数据');
+            }
         } catch (error) {
             console.error('生成三视图失败:', error);
             setAlertModalMessage('生成三视图失败，请重试');
@@ -793,44 +1141,73 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                 <span className="text-white text-xs font-bold">点击查看大图</span>
                             </div>
                             
-                            {/* 自动识别的主体框 */}
-                            {detectedSubjects.map((subject, index) => (
+                            {/* 已选择的主体区域框 */}
+                            {((detectedSubjects.length > 0 && selectedSubject === 0) || selectedArea) && (
                                 <div 
-                                    key={index}
-                                    className={`absolute border-3 pointer-events-auto cursor-pointer transition-all ${selectedSubject === index ? 'ring-2 ring-white shadow-xl' : 'hover:ring-2 hover:ring-white'}`}
+                                    className="absolute border-3 border-blue-500 pointer-events-auto cursor-move transition-all shadow-xl"
                                     style={{
-                                        left: subject.x,
-                                        top: subject.y,
-                                        width: subject.width,
-                                        height: subject.height,
-                                        borderColor: subject.color,
-                                        backgroundColor: `${subject.color}20`
+                                        left: selectedArea ? selectedArea.x : detectedSubjects[0].x,
+                                        top: selectedArea ? selectedArea.y : detectedSubjects[0].y,
+                                        width: selectedArea ? selectedArea.width : detectedSubjects[0].width,
+                                        height: selectedArea ? selectedArea.height : detectedSubjects[0].height,
+                                        backgroundColor: 'rgba(59, 130, 246, 0.2)'
+                                    }}
+                                    onMouseDown={handleSelectionDragStart}
+                                    title="拖动可移动选择框"
+                                >
+                                    <div 
+                                        className="absolute top-2 left-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded"
+                                    >
+                                        主体区域
+                                    </div>
+                                    
+                                    {/* 可调节手柄 */}
+                                    <div className="absolute -top-1 -left-1 w-2 h-2 bg-blue-700 rounded-full cursor-nw-resize" onMouseDown={(e) => handleResizeStart(e, 'nw')}></div>
+                                    <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-n-resize" onMouseDown={(e) => handleResizeStart(e, 'n')}></div>
+                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-700 rounded-full cursor-ne-resize" onMouseDown={(e) => handleResizeStart(e, 'ne')}></div>
+                                    <div className="absolute left-1/2 -bottom-1 transform -translate-x-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-s-resize" onMouseDown={(e) => handleResizeStart(e, 's')}></div>
+                                    <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-blue-700 rounded-full cursor-sw-resize" onMouseDown={(e) => handleResizeStart(e, 'sw')}></div>
+                                    <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-blue-700 rounded-full cursor-se-resize" onMouseDown={(e) => handleResizeStart(e, 'se')}></div>
+                                    <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-w-resize" onMouseDown={(e) => handleResizeStart(e, 'w')}></div>
+                                    <div className="absolute -right-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-e-resize" onMouseDown={(e) => handleResizeStart(e, 'e')}></div>
+                                </div>
+                            )}
+                            
+                            {/* 自动识别的主体框（未选中时显示） */}
+                            {detectedSubjects.length > 0 && selectedSubject !== 0 && (
+                                <div 
+                                    className="absolute border-3 border-blue-500 pointer-events-auto cursor-pointer transition-all hover:ring-2 hover:ring-white"
+                                    style={{
+                                        left: detectedSubjects[0].x,
+                                        top: detectedSubjects[0].y,
+                                        width: detectedSubjects[0].width,
+                                        height: detectedSubjects[0].height,
+                                        backgroundColor: 'rgba(59, 130, 246, 0.2)'
                                     }}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedSubject(index);
-                                        setSelectedArea(subject);
+                                        setSelectedSubject(0);
+                                        setSelectedArea(detectedSubjects[0]);
                                     }}
-                                    title={`选择主体 ${index + 1}`}
+                                    title="点击选择主体区域"
                                 >
                                     <div 
-                                        className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white shadow-lg text-lg"
-                                        style={{ backgroundColor: subject.color }}
+                                        className="absolute top-1 left-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded"
                                     >
-                                        {index + 1}
+                                        主体区域
                                     </div>
                                 </div>
-                            ))}
+                            )}
                             
-                            {/* 选择框 */}
-                            {(isSelecting || selectedArea) && !detectedSubjects.length && (
+                            {/* 正在选择的临时框 */}
+                            {isSelecting && (
                                 <div 
                                     className="absolute border-3 border-blue-600 bg-blue-200 bg-opacity-30 pointer-events-none shadow-lg"
                                     style={{
-                                        left: selectedArea ? selectedArea.x : Math.min(selectionStart.x, selectionEnd.x),
-                                        top: selectedArea ? selectedArea.y : Math.min(selectionStart.y, selectionEnd.y),
-                                        width: selectedArea ? selectedArea.width : Math.abs(selectionStart.x - selectionEnd.x),
-                                        height: selectedArea ? selectedArea.height : Math.abs(selectionStart.y - selectionEnd.y)
+                                        left: Math.min(selectionStart.x, selectionEnd.x),
+                                        top: Math.min(selectionStart.y, selectionEnd.y),
+                                        width: Math.abs(selectionStart.x - selectionEnd.x),
+                                        height: Math.abs(selectionStart.y - selectionEnd.y)
                                     }}
                                 />
                             )}

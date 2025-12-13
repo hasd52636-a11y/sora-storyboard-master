@@ -912,7 +912,7 @@ export async function quickDraft(prompt: string, userKey: string) {
   }).then(r => r.json())
 }
 
-export const generateFrameImage = async (frame: StoryboardFrame, styleName: string, settings: AppSettings): Promise<string> => {
+export const generateFrameImage = async (frame: StoryboardFrame, styleName: string, settings: AppSettings, config?: { referenceImage?: string }): Promise<string> => {
   const imgConfig = settings.image;
   const apiKey = getApiKey(imgConfig);
 
@@ -933,15 +933,23 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
   // 检查是否使用免费通道（无API密钥）
   const isFreeChannel = !apiKey;
   
+  // 构建基础提示词
+  let basePrompt = content;
+  
+  // 如果有参考主体图片，将其添加到提示词中
+  if (config?.referenceImage) {
+    basePrompt += `. 必须严格使用提供的参考主体图片中的物体外观，保持主体外观100%一致`;
+  }
+  
   if (isFreeChannel) {
     // 免费通道使用特殊模板避免黑块问题
-    prompt = `Subject: ${content}. Style: Professional storyboard sketch, rough pencil lines on clean white paper. Constraints: No solid black blocks, no heavy shadows, minimalist, high key lighting, white background.`;
+    prompt = `Subject: ${basePrompt}. Style: Professional storyboard sketch, rough pencil lines on clean white paper. Constraints: No solid black blocks, no heavy shadows, minimalist, high key lighting, white background.`;
   } else if (imgConfig.provider === 'siliconflow' || imgConfig.baseUrl?.includes('siliconflow.cn')) {
     // 硅基流动API
-    prompt = buildPrompt(content);
+    prompt = buildPrompt(basePrompt);
   } else {
     // 其他API提供商使用新的极简主义提示词
-    prompt = buildPrompt(content);
+    prompt = buildPrompt(basePrompt);
   }
 
   const maxRetries = 5; // 增加最大重试次数到5次
@@ -989,7 +997,12 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
             throw new Error('No image data in proxy response');
           }
         } else if (imgConfig.provider === 'gemini') {
-          return await generateImageGemini(prompt, imgConfig, apiKey);
+          // 如果有参考主体图片，需要特殊处理（Gemini API支持图片输入）
+          if (config?.referenceImage) {
+            return await generateImageGeminiWithReference(prompt, imgConfig, apiKey, config.referenceImage);
+          } else {
+            return await generateImageGemini(prompt, imgConfig, apiKey);
+          }
         } else if (imgConfig.provider === 'siliconflow' || imgConfig.baseUrl?.includes('siliconflow.cn')) {
           // 硅基流动API，使用我们的/api/ai/image端点
           const response = await fetchRetry('/api/ai/image', {
@@ -1256,6 +1269,34 @@ async function generateImageGemini(prompt: string, config: ApiConfig, apiKey: st
     }
   }
   throw new Error("No image data in Gemini response");
+}
+
+// 支持参考图片的Gemini API调用
+async function generateImageGeminiWithReference(prompt: string, config: ApiConfig, apiKey: string, referenceImage: string) {
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
+    model: config.model || 'gemini-2.5-flash-image',
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          { inlineData: { data: referenceImage.split(',')[1], mimeType: 'image/png' } }
+        ]
+      }
+    ],
+    generationConfig: {
+      width: 384,
+      height: 384,
+    }
+  });
+  if (response.candidates?.[0]?.content?.parts) {
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData && part.inlineData.data) {
+        return 'data:' + part.inlineData.mimeType + ';base64,' + part.inlineData.data;
+      }
+    }
+  }
+  throw new Error("No image data in Gemini response with reference");
 }
 
 async function generateImageOpenAI(prompt: string, config: ApiConfig, apiKey: string) {

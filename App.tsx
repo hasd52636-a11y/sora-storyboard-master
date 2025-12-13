@@ -181,8 +181,8 @@ const App: React.FC = () => {
     updatedFrames[frameIndex].isGenerating = true;
     setFrames(updatedFrames);
     try {
-      // 精修时调用 generateFrameImage 生成高分辨率图片
-      const url = await generateFrameImage(updatedFrames[frameIndex], config.style.name, appSettings);
+      // 精修时调用 generateFrameImage 生成高分辨率图片，传递config参数以支持参考主体
+      const url = await generateFrameImage(updatedFrames[frameIndex], config.style.name, appSettings, config);
       const finalFrames = [...frames];
       // 重新生成图片时清除用户添加的符号
       finalFrames[frameIndex] = { 
@@ -203,10 +203,11 @@ const App: React.FC = () => {
         }, 1000);
       }
     } catch(e) {
+      console.error('Regenerate frame error:', e);
       const finalFrames = [...frames];
       finalFrames[frameIndex].isGenerating = false;
       setFrames(finalFrames);
-      alert("Redraw failed.");
+      alert("Redraw failed. Please check the console for more details.");
     }
   };
 

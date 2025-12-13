@@ -3,9 +3,6 @@
 
 export const config = { runtime: 'edge' };
 
-// 导入Response构造函数
-import { Response } from 'node-fetch';
-
 // 1. 定义 CORS 头部
 // 本地测试时使用通配符，生产环境请替换为您网站的实际域名 (含 https://)
 const CORS_HEADERS = {

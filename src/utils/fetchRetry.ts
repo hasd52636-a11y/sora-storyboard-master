@@ -4,7 +4,7 @@
  * @param options fetch 选项 
  * @param maxRetries 最大重试次数 
  */ 
-export async function fetchRetry(url: RequestInfo, options?: RequestInit, maxRetries = 3): Promise<Response> { 
+export async function fetchRetry(url: RequestInfo, options?: RequestInit, maxRetries = 2): Promise<Response> { 
     let lastError: Error | null = null; 
     for (let i = 0; i < maxRetries; i++) { 
         try { 
