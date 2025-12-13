@@ -561,7 +561,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                         prompt: viewsPrompt,
                         size: '384x512', // 垂直方向较长，适合排列三个视图
                         steps: 30,
-                        reference_image: config.referenceImage // 添加参考图片
+                        reference_image: config.referenceImage, // 添加参考图片
                         n: 1
                     })
                 });
@@ -1141,15 +1141,15 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                 <span className="text-white text-xs font-bold">点击查看大图</span>
                             </div>
                             
-                            {/* 已选择的主体区域框 */}
-                            {((detectedSubjects.length > 0 && selectedSubject === 0) || selectedArea) && (
+                            {/* 已选择的主体区域框（可调节大小的） */}
+                            {selectedArea && (
                                 <div 
                                     className="absolute border-3 border-blue-500 pointer-events-auto cursor-move transition-all shadow-xl"
                                     style={{
-                                        left: selectedArea ? selectedArea.x : detectedSubjects[0].x,
-                                        top: selectedArea ? selectedArea.y : detectedSubjects[0].y,
-                                        width: selectedArea ? selectedArea.width : detectedSubjects[0].width,
-                                        height: selectedArea ? selectedArea.height : detectedSubjects[0].height,
+                                        left: selectedArea.x,
+                                        top: selectedArea.y,
+                                        width: selectedArea.width,
+                                        height: selectedArea.height,
                                         backgroundColor: 'rgba(59, 130, 246, 0.2)'
                                     }}
                                     onMouseDown={handleSelectionDragStart}
@@ -1173,8 +1173,8 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                 </div>
                             )}
                             
-                            {/* 自动识别的主体框（未选中时显示） */}
-                            {detectedSubjects.length > 0 && selectedSubject !== 0 && (
+                            {/* 自动识别的主体框（未选择时显示） */}
+                            {detectedSubjects.length > 0 && !selectedArea && (
                                 <div 
                                     className="absolute border-3 border-blue-500 pointer-events-auto cursor-pointer transition-all hover:ring-2 hover:ring-white"
                                     style={{
@@ -1186,7 +1186,6 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                     }}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedSubject(0);
                                         setSelectedArea(detectedSubjects[0]);
                                     }}
                                     title="点击选择主体区域"
