@@ -102,8 +102,7 @@ export const CONTACT_INFO = {
   web: "www.wboke.com"
 };
 
-export const DEFAULT_SETTINGS: AppSettings = {
-  language: 'zh', 
+export const DEFAULT_SETTINGS: AppSettings = {  language: 'zh', 
   llm: {
     provider: 'openai',
     apiKey: '',

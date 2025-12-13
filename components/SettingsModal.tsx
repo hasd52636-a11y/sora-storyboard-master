@@ -14,27 +14,30 @@ interface SettingsModalProps {
 
 interface ExtendedPreset extends ApiPreset {
     nameZh?: string;
+    officialUrl?: string;
 }
 
 const LLM_PRESETS: ExtendedPreset[] = [
-  { id: 'gemini', name: 'Google Gemini (Official)', nameZh: '谷歌 Gemini (官方)', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash' },
-  { id: 'deepseek', name: 'DeepSeek (Official)', nameZh: 'DeepSeek (官方)', provider: 'openai', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
-  { id: 'zhipu', name: 'Zhipu AI (ChatGLM)', nameZh: '智谱清言 (ChatGLM)', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'glm-4' },
-  { id: 'qwen', name: 'Qwen / Tongyi (Aliyun)', nameZh: '通义千问 (阿里云)', provider: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen-plus' },
-  { id: 'moonshot', name: 'Moonshot (Kimi)', nameZh: '月之暗面 (Kimi)', provider: 'openai', baseUrl: 'https://api.moonshot.cn/v1', defaultModel: 'moonshot-v1-8k' },
-  { id: 'doubao', name: 'Doubao (Volcengine)', nameZh: '豆包 (火山引擎)', provider: 'openai', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', defaultModel: 'doubao-pro-32k' },
-  { id: 'hunyuan', name: 'Hunyuan (Tencent)', nameZh: '腾讯混元', provider: 'openai', baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', defaultModel: 'hunyuan-standard' },
-  { id: 'siliconflow', name: 'SiliconFlow', nameZh: '硅基流动', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'THUDM/GLM-Z1-9B-0414' },
+  { id: 'gemini', name: 'Google Gemini (Official)', nameZh: '谷歌 Gemini (官方)', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash', officialUrl: 'https://ai.google.dev/' },
+  { id: 'deepseek', name: 'DeepSeek (Official)', nameZh: 'DeepSeek (官方)', provider: 'openai', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat', officialUrl: 'https://www.deepseek.com/' },
+  { id: 'zhipu', name: 'Zhipu AI (ChatGLM)', nameZh: '智谱清言 (ChatGLM)', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'glm-4', officialUrl: 'https://open.bigmodel.cn/' },
+  { id: 'qwen', name: 'Qwen / Tongyi (Aliyun)', nameZh: '通义千问 (阿里云)', provider: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen-plus', officialUrl: 'https://dashscope.aliyun.com/' },
+  { id: 'moonshot', name: 'Moonshot (Kimi)', nameZh: '月之暗面 (Kimi)', provider: 'openai', baseUrl: 'https://api.moonshot.cn/v1', defaultModel: 'moonshot-v1-8k', officialUrl: 'https://www.moonshot.cn/' },
+  { id: 'doubao', name: 'Doubao (Volcengine)', nameZh: '豆包 (火山引擎)', provider: 'openai', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', defaultModel: 'doubao-pro-32k', officialUrl: 'https://www.doubao.com/' },
+  { id: 'hunyuan', name: 'Hunyuan (Tencent)', nameZh: '腾讯混元', provider: 'openai', baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', defaultModel: 'hunyuan-standard', officialUrl: 'https://cloud.tencent.com/product/hunyuan' },
+  { id: 'siliconflow', name: 'SiliconFlow', nameZh: '硅基流动', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'THUDM/GLM-Z1-9B-0414', officialUrl: 'https://siliconflow.cn/' },
+  { id: 'sucreative-gemini', name: 'SuCreative Gemini', nameZh: '速创 Gemini', provider: 'openai', baseUrl: 'https://api.wuyinkeji.com/api/chat/index', defaultModel: 'gemini-3-pro', officialUrl: 'https://www.wuyinkeji.com/' },
   { id: 'custom', name: 'Custom / Other', nameZh: '自定义 / 其他', provider: 'openai', baseUrl: '', defaultModel: '' },
 ];
 
 const IMG_PRESETS: ExtendedPreset[] = [
-  { id: 'gemini-img', name: 'Google Gemini Image', nameZh: '谷歌 Gemini 绘图', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash-image' },
-  { id: 'dalle', name: 'OpenAI DALL-E 3', nameZh: 'OpenAI DALL-E 3', provider: 'openai', baseUrl: 'https://api.openai.com/v1', defaultModel: 'dall-e-3' },
-  { id: 'silicon-flux', name: 'SiliconFlow (Flux)', nameZh: '硅基流动 (Flux绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'black-forest-labs/FLUX.1-schnell' },
-  { id: 'silicon-sd', name: 'SiliconFlow (Stable Diffusion)', nameZh: '硅基流动 (SD绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'stabilityai/stable-diffusion-3-5-large' },
-  { id: 'zhipu-img', name: 'Zhipu CogView', nameZh: '智谱 CogView', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'cogview-3' },
-  { id: 'jimeng', name: 'Jimeng (ByteDance)', nameZh: '即梦 (字节跳动)', provider: 'openai', baseUrl: 'https://api.jimeng.com/v1', defaultModel: 'jimeng-2.0' },
+  { id: 'gemini-img', name: 'Google Gemini Image', nameZh: '谷歌 Gemini 绘图', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash-image', officialUrl: 'https://ai.google.dev/' },
+  { id: 'dalle', name: 'OpenAI DALL-E 3', nameZh: 'OpenAI DALL-E 3', provider: 'openai', baseUrl: 'https://api.openai.com/v1', defaultModel: 'dall-e-3', officialUrl: 'https://platform.openai.com/' },
+  { id: 'silicon-flux', name: 'SiliconFlow (Flux)', nameZh: '硅基流动 (Flux绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'black-forest-labs/FLUX.1-schnell', officialUrl: 'https://siliconflow.cn/' },
+  { id: 'silicon-sd', name: 'SiliconFlow (Stable Diffusion)', nameZh: '硅基流动 (SD绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'stabilityai/stable-diffusion-3-5-large', officialUrl: 'https://siliconflow.cn/' },
+  { id: 'zhipu-img', name: 'Zhipu CogView', nameZh: '智谱 CogView', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'cogview-3', officialUrl: 'https://open.bigmodel.cn/' },
+  { id: 'jimeng', name: 'Jimeng (ByteDance)', nameZh: '即梦 (字节跳动)', provider: 'openai', baseUrl: 'https://api.jimeng.com/v1', defaultModel: 'jimeng-2.0', officialUrl: 'https://jimeng.ai/' },
+  { id: 'sucreative-nano', name: 'SuCreative NanoBanana', nameZh: '速创 NanoBanana', provider: 'openai', baseUrl: 'https://api.wuyinkeji.com/api/img', defaultModel: 'nano-banana', officialUrl: 'https://www.wuyinkeji.com/' },
   { id: 'custom-img', name: 'Custom / Other', nameZh: '自定义 / 其他', provider: 'openai', baseUrl: '', defaultModel: '' },
 ];
 
@@ -119,11 +122,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   const isZh = currentLang === 'zh';
   const tr = (key: keyof typeof translations['en']) => t(currentLang, key);
 
+  // 处理配置变化，如果是速创API则自动同步密钥
   const handleConfigChange = (type: 'llm' | 'image', field: keyof ApiConfig, value: string) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      [type]: { ...prev[type], [field]: value }
-    }));
+    const newSettings = {
+      ...localSettings,
+      [type]: { ...localSettings[type], [field]: value }
+    };
+    
+    // 如果修改的是速创API的密钥，自动同步到另一个配置
+    if (field === 'apiKey' && value) {
+      const isLlmSucreative = newSettings.llm.presetName?.includes('速创') || newSettings.llm.baseUrl?.includes('wuyinkeji.com');
+      const isImageSucreative = newSettings.image.presetName?.includes('速创') || newSettings.image.baseUrl?.includes('wuyinkeji.com');
+      
+      if (type === 'llm' && isLlmSucreative && isImageSucreative) {
+        newSettings.image.apiKey = value;
+      } else if (type === 'image' && isImageSucreative && isLlmSucreative) {
+        newSettings.llm.apiKey = value;
+      }
+    }
+    
+    setLocalSettings(newSettings);
   };
 
   const handlePresetSelect = (type: 'llm' | 'image', presetId: string) => {
@@ -135,6 +153,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
     const verifiedConfig = verifiedList[type].find(v => 
       v.presetName === (isZh && preset.nameZh ? preset.nameZh : preset.name)
     );
+    
+    // 检查是否为速创API预设
+    const isSucreativePreset = preset.id.includes('sucreative');
+    
+    // 如果是速创API预设，尝试使用另一个配置中的速创API密钥
+    let apiKey = verifiedConfig?.apiKey || '';
+    if (isSucreativePreset && !apiKey) {
+      const otherType = type === 'llm' ? 'image' : 'llm';
+      const otherConfig = localSettings[otherType];
+      const isOtherSucreative = otherConfig.presetName?.includes('速创') || otherConfig.baseUrl?.includes('wuyinkeji.com');
+      
+      if (isOtherSucreative && otherConfig.apiKey) {
+        apiKey = otherConfig.apiKey;
+      }
+    }
 
     setLocalSettings(prev => ({
       ...prev,
@@ -144,8 +177,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
         baseUrl: preset.baseUrl,
         model: preset.defaultModel,
         presetName: isZh && preset.nameZh ? preset.nameZh : preset.name,
-        // 如果有已验证的配置，使用其API密钥，否则重置为空
-        apiKey: verifiedConfig?.apiKey || ''
+        apiKey: apiKey
       }
     }));
   };
@@ -223,7 +255,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
             {/* Presets Dropdown */}
             <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">{tr('selectPreset')}</label>
+                <div className="flex items-center gap-2 mb-1">
+                    <label className="block text-xs font-bold text-gray-500">{tr('selectPreset')}</label>
+                    {(() => {
+                        // 找到当前选择的预设
+                        const currentPreset = presets.find(p => 
+                            (config.presetName && (isZh && p.nameZh === config.presetName || p.name === config.presetName)) ||
+                            (p.baseUrl === config.baseUrl && p.model === config.model) ||
+                            (config.presetName?.includes('custom') && p.id === 'custom')
+                        );
+                        // 如果预设存在且有官网链接，显示图标
+                        if (currentPreset && currentPreset.officialUrl) {
+                            return (
+                                <a 
+                                    href={currentPreset.officialUrl} 
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-gray-400 hover:text-blue-500 transition-colors"
+                                    title={isZh ? '访问官网获取密钥' : 'Visit official website'}
+                                >
+                                    🌐
+                                </a>
+                            );
+                        }
+                        return null;
+                    })()}
+                </div>
                 <select 
                     className="w-full p-2 text-sm rounded-lg border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none"
                     onChange={(e) => handlePresetSelect(type, e.target.value)}

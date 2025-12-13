@@ -87,7 +87,7 @@ const Setup: React.FC<SetupProps> = ({ config, updateConfig, onNext, isLoading, 
                         </svg>
                         <span>{config.referenceImage ? tr('refImageLabel') : tr('addRefImage')}</span>
                     </button>
-                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} aria-label={tr('addRefImage')} />
                     {config.referenceImage && (
                         <div className="absolute bottom-full right-0 mb-2 w-24 h-24 bg-white p-2 rounded-xl shadow-xl border border-gray-100">
                              <img src={config.referenceImage} className="w-full h-full object-cover rounded-lg" />
@@ -154,6 +154,7 @@ const Setup: React.FC<SetupProps> = ({ config, updateConfig, onNext, isLoading, 
                   value={config.duration}
                   onChange={(e) => updateConfig({ duration: parseInt(e.target.value) })}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  aria-label={tr('duration')}
                 />
               </div>
               <div>
@@ -165,6 +166,7 @@ const Setup: React.FC<SetupProps> = ({ config, updateConfig, onNext, isLoading, 
                   value={config.frameCount}
                   onChange={(e) => updateConfig({ frameCount: parseInt(e.target.value) })}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  aria-label={tr('frameCount')}
                 />
               </div>
             </div>

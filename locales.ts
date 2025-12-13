@@ -97,6 +97,8 @@ export const translations = {
     generateNextFrame: "Generate Next Frame",
     generatingNext: "Generating...",
     allFramesGenerated: "All Frames Generated",
+    aiMask: "AI Remove Background",
+    aiViews: "Generate 3D Views",
     
     // Symbol Categories
     cat_reference: "Reference",
@@ -270,6 +272,8 @@ export const translations = {
     generateNextFrame: "生成下一个分镜",
     generatingNext: "生成中...",
     allFramesGenerated: "所有分镜已生成",
+    aiMask: "AI抠图",
+    aiViews: "生成三视图",
 
     // Symbol Categories
     cat_reference: "参考符号",

@@ -75,6 +75,12 @@ export default defineConfig(({ mode }) => {
         rewrite: (path) => path.replace(/^\/api\/siliconflow/, ''),
         secure: false
       },
+      '/api/sucreative': {
+        target: 'https://api.wuyinkeji.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/sucreative/, ''),
+        secure: false
+      },
       // AI聊天和图片API现在由Edge函数处理，不再需要代理
       // '/api/ai/chat': {
       //   target: 'https://api.siliconflow.cn',

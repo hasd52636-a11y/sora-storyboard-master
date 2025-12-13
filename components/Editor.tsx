@@ -131,9 +131,219 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             reader.onload = (ev) => {
                 if (ev.target?.result) {
                     updateConfig({ referenceImage: ev.target.result as string });
+                    // 上传后不再自动弹窗显示大图
+                    // setIsReferenceImageVisible(true);
+                    setGeneratedMaskImage(null);
+                    setGeneratedViews([]);
+                    setSelectedResult(null);
+                    // 重置选择区域状态
+                    setSelectedArea(null);
+                    setIsSelecting(false);
+                    setSelectionStart({ x: 0, y: 0 });
+                    setSelectionEnd({ x: 0, y: 0 });
+                    
+                    // 模拟自动识别主体（实际项目中应调用AI接口）
+                    setTimeout(() => {
+                        // 假设识别到两个主体
+                        const mockSubjects = [
+                            { x: 20, y: 30, width: 80, height: 100, color: '#FF5733' },
+                            { x: 120, y: 40, width: 70, height: 90, color: '#33FF57' }
+                        ];
+                        setDetectedSubjects(mockSubjects);
+                    }, 1000);
                 }
             };
             reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+    
+    // 处理鼠标按下事件，开始选择区域
+     const handleRefImageMouseDown = (e: React.MouseEvent) => {
+         if (!referenceImageRef.current) return;
+         
+         const rect = referenceImageRef.current.getBoundingClientRect();
+         const x = e.clientX - rect.left;
+         const y = e.clientY - rect.top;
+         
+         setIsSelecting(true);
+         setSelectionStart({ x, y });
+         setSelectionEnd({ x, y });
+     };
+     
+     // 处理鼠标移动事件，更新选择区域
+     const handleRefImageMouseMove = (e: React.MouseEvent) => {
+         if (!isSelecting || !referenceImageRef.current) return;
+         
+         const rect = referenceImageRef.current.getBoundingClientRect();
+         const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+         const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+         
+         setSelectionEnd({ x, y });
+     };
+     
+     // 处理鼠标释放事件，完成选择区域
+     const handleRefImageMouseUp = () => {
+         if (!isSelecting) return;
+         
+         const x = Math.min(selectionStart.x, selectionEnd.x);
+         const y = Math.min(selectionStart.y, selectionEnd.y);
+         const width = Math.abs(selectionStart.x - selectionEnd.x);
+         const height = Math.abs(selectionStart.y - selectionEnd.y);
+         
+         // 只有当选择区域有一定大小时才保存
+         if (width > 10 && height > 10) {
+             setSelectedArea({ x, y, width, height });
+         } else {
+             setSelectedArea(null);
+         }
+         
+         setIsSelecting(false);
+     };
+    
+    // 清除选择区域
+    const clearSelection = () => {
+        setSelectedArea(null);
+        setIsSelecting(false);
+        setSelectionStart({ x: 0, y: 0 });
+        setSelectionEnd({ x: 0, y: 0 });
+    };
+    
+    // 模拟AI抠图功能
+    const handleGenerateMask = async () => {
+        if (!config.referenceImage) return;
+        
+        setIsGeneratingMask(true);
+        setGeneratedMaskImage(null);
+        setSelectedResult(null);
+        
+        try {
+            // 模拟API调用延迟
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // 这里应该调用实际的AI抠图API，现在返回模拟结果
+            const mockMaskImage = config.referenceImage; // 实际项目中应该是API返回的抠图结果
+            setGeneratedMaskImage(mockMaskImage);
+            setSelectedResult(mockMaskImage);
+        } catch (error) {
+            console.error('生成抠图失败:', error);
+            setAlertModalMessage('生成抠图失败，请重试');
+            setShowAlertModal(true);
+        } finally {
+            setIsGeneratingMask(false);
+        }
+    };
+    
+    // 模拟AI生成三视图功能
+    const handleGenerateViews = async () => {
+        if (!config.referenceImage) return;
+        
+        setIsGeneratingViews(true);
+        setGeneratedViews([]);
+        setSelectedResult(null);
+        
+        try {
+            // 模拟API调用延迟
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // 这里应该调用实际的AI生成三视图API，现在返回模拟结果
+            const mockViews = [
+                config.referenceImage, // 前视图
+                config.referenceImage, // 侧视图
+                config.referenceImage  // 后视图
+            ];
+            setGeneratedViews(mockViews);
+            setSelectedResult(mockViews[0]);
+        } catch (error) {
+            console.error('生成三视图失败:', error);
+            setAlertModalMessage('生成三视图失败，请重试');
+            setShowAlertModal(true);
+        } finally {
+            setIsGeneratingViews(false);
+        }
+    };
+    
+    // 确认使用生成的结果
+    const confirmResult = () => {
+        if (!selectedResult || !updateConfig) return;
+        
+        updateConfig({ referenceImage: selectedResult });
+        setGeneratedMaskImage(null);
+        setGeneratedViews([]);
+        setSelectedResult(null);
+        setIsReferenceImageVisible(false);
+    };
+    
+    // 合成三视图
+    const combineViews = () => {
+        if (generatedViews.length === 0 || !updateConfig) return;
+        
+        try {
+            // 创建一个新的canvas来合成三个视图
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                throw new Error('无法创建canvas上下文');
+            }
+            
+            // 加载图片以获取尺寸
+            const imgPromises = generatedViews.map(src => {
+                return new Promise<HTMLImageElement>((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.crossOrigin = 'anonymous';
+                    img.src = src;
+                });
+            });
+            
+            Promise.all(imgPromises).then(images => {
+                // 计算canvas尺寸（三个视图纵向排列）
+                const maxWidth = Math.max(...images.map(img => img.width));
+                const totalHeight = images.reduce((sum, img) => sum + img.height, 0);
+                const padding = 20;
+                
+                canvas.width = maxWidth + padding * 2;
+                canvas.height = totalHeight + padding * 4;
+                
+                // 绘制背景
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // 绘制三个视图（上中下竖排）
+                let currentY = padding * 2;
+                const labels = ['前视图', '侧视图', '后视图'];
+                
+                images.forEach((img, index) => {
+                    const x = padding + (maxWidth - img.width) / 2;
+                    ctx.drawImage(img, x, currentY, img.width, img.height);
+                    
+                    // 添加标签
+                    ctx.fillStyle = '#333333';
+                    ctx.font = 'bold 16px Arial';
+                    ctx.textAlign = 'center';
+                    const label = labels[index] || `视图${index + 1}`;
+                    ctx.fillText(label, x + img.width / 2, currentY + img.height + padding);
+                    
+                    currentY += img.height + padding * 2;
+                });
+                
+                // 转换为base64并更新参考图片
+                const combinedImage = canvas.toDataURL('image/png');
+                updateConfig({ referenceImage: combinedImage });
+                
+                // 关闭弹窗
+                setGeneratedViews([]);
+                setSelectedResult(null);
+                setIsReferenceImageVisible(false);
+                
+                // 显示成功提示
+                setAlertModalMessage('三视图合成成功！');
+                setShowAlertModal(true);
+            });
+        } catch (error) {
+            console.error('合成三视图失败:', error);
+            setAlertModalMessage('合成三视图失败，请重试');
+            setShowAlertModal(true);
         }
     };
 
@@ -158,7 +368,26 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
   const [alertModalMessage, setAlertModalMessage] = useState('');
   // 控制是否在文本修改时显示动画
   const [isTextEditing, setIsTextEditing] = useState(false);
+  
+  // 参考主体处理状态
+  const [isReferenceImageVisible, setIsReferenceImageVisible] = useState(false);
+  const [isGeneratingMask, setIsGeneratingMask] = useState(false);
+  const [isGeneratingViews, setIsGeneratingViews] = useState(false);
+  const [generatedMaskImage, setGeneratedMaskImage] = useState<string | null>(null);
+  const [generatedViews, setGeneratedViews] = useState<string[]>([]);
+  const [selectedResult, setSelectedResult] = useState<string | null>(null);
   const [isShowEffect, setIsShowEffect] = useState(false);
+  
+  // 自动检测的主体状态
+  const [detectedSubjects, setDetectedSubjects] = useState<{ x: number; y: number; width: number; height: number; color: string }[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
+  
+  // 主体标记功能状态
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
+  const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
+  const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const referenceImageRef = useRef<HTMLDivElement>(null);
   
   const getAspectRatioStyle = () => {
      const [w, h] = config.aspectRatio.split(':').map(Number);
@@ -495,8 +724,8 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
 
   return (
       <div className="flex flex-col h-full w-full max-w-[1800px] mx-auto px-4 pb-4 relative">
-        {/* Global Sci-fi Loading Overlay - 文本编辑时不显示 */}
-        {(isGlobalLoading || (isAnyFrameGenerating && !isTextEditing) || isShowEffect) && (
+        {/* Global Sci-fi Loading Overlay - 仅在全局生成时显示 */}
+        {(isGlobalLoading || isShowEffect) && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="relative flex flex-col items-center justify-center">
               {/* Outer rotating circle */}
@@ -528,41 +757,276 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         {/* LEFT COLUMN: Reference + Library */}
         <div className="w-56 flex-shrink-0 flex flex-col gap-4">
              {/* 1. Reference Subject (Static Preview) - Completely separated */}
-             <div className="glass-panel rounded-2xl p-4 flex flex-col flex-shrink-0">
-                 <h3 className="font-bold text-gray-700 mb-2 text-sm uppercase tracking-wider">{tr('refSubject')}</h3>
-                 <div className="p-2 bg-red-50 rounded-xl border-2 border-dashed border-red-200 text-center relative group">
+             <div className="glass-panel rounded-2xl p-4 flex flex-col flex-shrink-0 border-2 border-blue-500">
+                 <div className="flex items-center justify-between mb-2">
+                     <h3 className="font-bold text-blue-700 text-sm uppercase tracking-wider">{tr('refSubject')}</h3>
+                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">AI辅助功能</span>
+                 </div>
+                 
+                 {/* 参考图片显示区域 */}
+                <div className="p-3 bg-blue-50 rounded-xl border-2 border-blue-200 text-center relative group mb-3">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                    />
+                    
                     {config.referenceImage ? (
-                        <div className="w-full aspect-square rounded-lg overflow-hidden shadow-sm">
-                            <img src={config.referenceImage} className="w-full h-full object-cover" />
+                        <div 
+                            ref={referenceImageRef}
+                            className="w-full rounded-lg overflow-hidden shadow-md cursor-crosshair relative border-2 border-dashed border-red-400 bg-white"
+                            style={{ height: '150px', overflow: 'hidden' }}
+                            onMouseDown={handleRefImageMouseDown}
+                            onMouseMove={handleRefImageMouseMove}
+                            onMouseUp={handleRefImageMouseUp}
+                            onMouseLeave={handleRefImageMouseUp}
+                        >
+                            <img 
+                                src={config.referenceImage} 
+                                className="w-full h-full object-cover"
+                                onClick={() => setIsReferenceImageVisible(true)}
+                                title="点击查看大图，鼠标拖拽选择主体区域"
+                            />
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                <span className="text-white text-xs font-bold">点击查看大图</span>
+                            </div>
+                            
+                            {/* 自动识别的主体框 */}
+                            {detectedSubjects.map((subject, index) => (
+                                <div 
+                                    key={index}
+                                    className={`absolute border-3 pointer-events-auto cursor-pointer transition-all ${selectedSubject === index ? 'ring-2 ring-white shadow-xl' : 'hover:ring-2 hover:ring-white'}`}
+                                    style={{
+                                        left: subject.x,
+                                        top: subject.y,
+                                        width: subject.width,
+                                        height: subject.height,
+                                        borderColor: subject.color,
+                                        backgroundColor: `${subject.color}20`
+                                    }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedSubject(index);
+                                        setSelectedArea(subject);
+                                    }}
+                                    title={`选择主体 ${index + 1}`}
+                                >
+                                    <div 
+                                        className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white shadow-lg text-lg"
+                                        style={{ backgroundColor: subject.color }}
+                                    >
+                                        {index + 1}
+                                    </div>
+                                </div>
+                            ))}
+                            
+                            {/* 选择框 */}
+                            {(isSelecting || selectedArea) && !detectedSubjects.length && (
+                                <div 
+                                    className="absolute border-3 border-blue-600 bg-blue-200 bg-opacity-30 pointer-events-none shadow-lg"
+                                    style={{
+                                        left: selectedArea ? selectedArea.x : Math.min(selectionStart.x, selectionEnd.x),
+                                        top: selectedArea ? selectedArea.y : Math.min(selectionStart.y, selectionEnd.y),
+                                        width: selectedArea ? selectedArea.width : Math.abs(selectionStart.x - selectionEnd.x),
+                                        height: selectedArea ? selectedArea.height : Math.abs(selectionStart.y - selectionEnd.y)
+                                    }}
+                                />
+                            )}
+                            
+                            {/* 简化的提示：只有清除识别按钮 */}
+                            {detectedSubjects.length > 0 && (
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDetectedSubjects([]);
+                                        setSelectedSubject(null);
+                                        setSelectedArea(null);
+                                    }}
+                                    className="absolute bottom-3 right-3 text-xs bg-white text-blue-900 px-2 py-0.5 rounded hover:bg-gray-100 font-bold shadow-md"
+                                    title="清除识别结果"
+                                >
+                                    清除识别
+                                </button>
+                            )}
+                            
+                            {/* 删除按钮 */}
+                            {config.referenceImage && updateConfig && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateConfig({ referenceImage: undefined });
+                                        clearSelection();
+                                        setDetectedSubjects([]);
+                                        setSelectedSubject(null);
+                                    }}
+                                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 shadow-md"
+                                    title="删除参考图片"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            )}
                         </div>
                     ) : (
-                        <div className="text-[10px] text-gray-400 italic py-4">{tr('noRefImage')}</div>
-                    )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                        />
-                        <button
+                        <div 
                             onClick={() => fileInputRef.current?.click()}
-                            className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold mr-2 hover:bg-blue-700"
+                            className="w-full rounded-lg overflow-hidden shadow-md cursor-pointer relative border-2 border-dashed border-red-400 bg-white flex items-center justify-center"
+                            style={{ minHeight: '150px', height: 'auto' }}
                         >
-                            {tr('upload')}
+                            <div className="text-[10px] text-gray-500 italic py-4 flex flex-col items-center gap-2">
+                                <div className="w-16 h-16 flex items-center justify-center bg-blue-50 rounded-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                </div>
+                                <div>{tr('noRefImage')}</div>
+                                <div className="text-[9px]">点击上传图片，自动识别主体</div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                
+                {/* 处理按钮区域 */}
+                {config.referenceImage && (
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={() => {
+                                // 点击抠图按钮时弹窗显示大图
+                                setIsReferenceImageVisible(true);
+                                handleGenerateMask();
+                            }}
+                            disabled={isGeneratingMask || isGeneratingViews}
+                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors ${isGeneratingMask ? 'bg-purple-600 text-white cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
+                        >
+                            {isGeneratingMask ? (
+                                <div className="flex items-center justify-center">
+                                    <div className="animate-spin mr-2 h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+                                    {t(lang, 'generating')}
+                                </div>
+                            ) : (
+                                t(lang, 'aiMask')
+                            )}
                         </button>
-                        {config.referenceImage && updateConfig && (
-                            <button
-                                onClick={() => updateConfig({ referenceImage: undefined })}
-                                className="px-3 py-1.5 bg-red-500 text-white rounded text-xs font-bold hover:bg-red-600"
+                        <button
+                            onClick={() => {
+                                // 点击生成三视图按钮时弹窗显示大图
+                                setIsReferenceImageVisible(true);
+                                handleGenerateViews();
+                            }}
+                            disabled={isGeneratingMask || isGeneratingViews}
+                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors ${isGeneratingViews ? 'bg-purple-600 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        >
+                            {isGeneratingViews ? (
+                                <div className="flex items-center justify-center">
+                                    <div className="animate-spin mr-2 h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+                                    {t(lang, 'generating')}
+                                </div>
+                            ) : (
+                                t(lang, 'aiViews')
+                            )}
+                        </button>
+                    </div>
+                )}
+            </div>
+             
+             {/* 生成结果显示弹窗 */}
+             {(isReferenceImageVisible || generatedMaskImage || generatedViews.length > 0) && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl max-w-[400px] w-full">
+                        <div className="p-1 border-b flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800 text-lg text-center flex-1">
+                                {generatedMaskImage ? '抠图结果' : generatedViews.length > 0 ? '三视图预览' : '参考图片'}
+                            </h3>
+                            <button 
+                                onClick={() => {
+                                    setIsReferenceImageVisible(false);
+                                    setGeneratedMaskImage(null);
+                                    setGeneratedViews([]);
+                                    setSelectedResult(null);
+                                }}
+                                className="text-gray-500 hover:text-gray-700"
                             >
-                                {tr('delete')}
+                                ✕
                             </button>
-                        )}
+                        </div>
+                        
+                        <div className="p-1">
+                            {/* 单个图片显示 */}
+                            {(isReferenceImageVisible && !generatedMaskImage && generatedViews.length === 0) && (
+                                <div className="flex justify-center mb-4">
+                                    <img src={config.referenceImage} className="max-w-full max-h-[60vh] object-contain" />
+                                </div>
+                            )}
+                            
+                            {/* 抠图结果显示 */}
+                            {generatedMaskImage && (
+                                <div className="flex justify-center mb-4">
+                                    <div 
+                                        className={`relative p-2 ${selectedResult === generatedMaskImage ? 'border-2 border-blue-500 rounded-lg' : ''}`}
+                                        onClick={() => setSelectedResult(generatedMaskImage)}
+                                    >
+                                        <img src={generatedMaskImage} className="max-w-full max-h-[60vh] object-contain cursor-pointer" />
+                                        {selectedResult === generatedMaskImage && (
+                                            <div className="absolute inset-0 border-2 border-blue-500 rounded-lg pointer-events-none"></div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* 三视图显示 */}
+                            {generatedViews.length > 0 && (
+                                <div className="flex flex-col items-center">
+                                    {generatedViews.map((view, index) => (
+                                        <div 
+                                            key={index}
+                                            className={`relative ${selectedResult === view ? 'border-2 border-blue-500 rounded-lg' : ''}`}
+                                            onClick={() => setSelectedResult(view)}
+                                        >
+                                            <img 
+                                                src={view} 
+                                                className="max-w-[250px] max-h-[30vh] object-contain cursor-pointer"
+                                                alt={`视图 ${index + 1}`}
+                                            />
+                                            {selectedResult === view && (
+                                                <div className="absolute inset-0 border-2 border-blue-500 rounded-lg pointer-events-none"></div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* 操作按钮 */}
+                            <div className="flex justify-center space-x-2 mt-1">
+                                {generatedMaskImage && (
+                                    <button
+                                        onClick={confirmResult}
+                                        disabled={!selectedResult}
+                                        className={`px-4 py-2 rounded-lg text-sm font-bold ${selectedResult ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                                    >
+                                        确认使用
+                                    </button>
+                                )}
+                                {generatedViews.length > 0 && (
+                                    <>
+                                        <button
+                                            onClick={confirmResult}
+                                            disabled={!selectedResult}
+                                            className={`px-4 py-2 rounded-lg text-sm font-bold ${selectedResult ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                                        >
+                                            选择单个视图
+                                        </button>
+                                        <button
+                                            onClick={combineViews}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700"
+                                        >
+                                            合成显示
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
-             </div>
+            )}
 
              {/* 2. Symbol Library (Scrollable) */}
              <div className="glass-panel rounded-2xl p-4 flex flex-col overflow-hidden flex-1">
@@ -832,7 +1296,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                     )}
                                 </button>
                                 <label className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg transform hover:scale-110 transition-all cursor-pointer" title={tr('upload')}>
-                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFrameImageUpload(e, idx)} />
+                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFrameImageUpload(e, idx)} aria-label={tr('uploadFrameImage')} />
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                 </label>
                              </div>
@@ -884,7 +1348,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                               </div>
                               <label className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold text-center cursor-pointer">
                                   {tr('uploadIcon')}
-                                  <input type="file" className="hidden" accept="image/*" onChange={handleIconUpload} />
+                                  <input type="file" className="hidden" accept="image/*" onChange={handleIconUpload} aria-label={tr('uploadIcon')} />
                               </label>
                           </div>
                       </div>

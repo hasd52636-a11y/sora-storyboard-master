@@ -58,37 +58,32 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
   const generatePrompt = (subsetFrames: StoryboardFrame[], targetLang: Language) => {
     const isZh = targetLang === 'zh';
     
-    // Header: 明确告诉Sora 2按照以下指令生成视频
-    let prompt = isZh ? `=视频生成指令=\n` : `=VIDEO GENERATION INSTRUCTIONS=\n`;
-    prompt += isZh ? `[重要说明]\n` : `[IMPORTANT NOTE]\n`;
-    prompt += isZh ? `严格按指令生成视频，分镜编号与脚本编号一一对应。\n结合分镜图(场景构图)和文字(剧情要求)生成。\n` : `Strictly follow instructions, frame numbers correspond exactly to script numbers.\nCombine storyboard (scene composition) and text (plot requirements).\n`;
+    // Header: 明确简洁的Sora 2视频生成指令
+    let prompt = isZh ? `=Sora 2视频生成指令=\n` : `=SORA 2 VIDEO GENERATION INSTRUCTIONS=\n`;
+    prompt += isZh ? `[核心要求]\n` : `[CORE REQUIREMENTS]\n`;
+    prompt += isZh ? `1. 严格按分镜编号顺序生成，分镜与脚本一一对应\n` : `1. Follow exact shot sequence, each storyboard matches one script\n`;
+    prompt += isZh ? `2. 结合分镜图(构图)和文字(剧情)生成视频\n` : `2. Combine storyboard (composition) and text (plot)\n`;
     
-    // Global Context
-    prompt += isZh ? `\n[全局上下文]\n` : `\n[GLOBAL CONTEXT]\n`;
+    // Global Context - 精确的全局参数
+    prompt += isZh ? `\n[全局参数]\n` : `\n[GLOBAL PARAMETERS]\n`;
     prompt += isZh ? `风格: ${config.style.name}\n` : `Style: ${config.style.name}\n`;
     prompt += isZh ? `分辨率: 16:9\n` : `Resolution: 16:9\n`;
     prompt += isZh ? `总时长: ${config.duration}秒\n` : `Total Duration: ${config.duration}s\n`;
-    // 添加参考图片信息到全局上下文
+    
+    // 参考主体 - 精准说明使用要求
     if (config.referenceImage) {
-      prompt += isZh ? `参考主体: 使用提供的参考图片保持主体外观一致。\n` : `Reference Subject: Use provided reference image for consistent appearance.\n`;
+      prompt += isZh ? `参考主体: 严格使用提供的参考图片，保持主体外观100%一致\n` : `Reference Subject: Strictly use provided reference image, maintain 100% consistent appearance\n`;
     }
     
-    // Prohibitions and Restrictions
-    prompt += isZh ? `\n[禁止与限制]\n` : `\n[PROHIBITIONS]\n`;
-    prompt += isZh ? `1. 不改变参考主体核心特征\n` : `1. Do not change reference subject core features\n`;
-    prompt += isZh ? `2. 不添加无关元素/角色\n` : `2. Do not add irrelevant elements/characters\n`;
-    prompt += isZh ? `3. 严格执行指定的镜头运动\n` : `3. Strictly follow specified camera movements\n`;
-    prompt += isZh ? `4. 不违反指定视觉风格\n` : `4. Do not violate specified visual style\n`;
-    prompt += isZh ? `5. 按分镜编号顺序生成\n` : `5. Follow shot number sequence\n`;
-    prompt += isZh ? `6. 保持镜头间视觉连续性\n` : `6. Maintain visual continuity between shots\n`;
+    // 执行规则 - 简单明了的限制条件
+    prompt += isZh ? `\n[执行规则]\n` : `\n[EXECUTION RULES]\n`;
+    prompt += isZh ? `1. 不修改参考主体核心特征\n` : `1. Do not modify reference subject core features\n`;
+    prompt += isZh ? `2. 不添加无关元素或角色\n` : `2. Do not add irrelevant elements/characters\n`;
+    prompt += isZh ? `3. 精确执行指定的镜头运动\n` : `3. Precisely execute specified camera movements\n`;
+    prompt += isZh ? `4. 保持镜头间视觉连续性\n` : `4. Maintain visual continuity between shots\n`;
     
-    // 分镜图信息统一指令 - 避免在每个分镜中重复
-    prompt += isZh ? `\n[分镜图使用规则]\n` : `\n[STORYBOARD USAGE RULES]\n`;
-    prompt += isZh ? `严格按照分镜图的构图、元素位置和符号含义执行。\n` : `Strictly follow composition, element positions, and symbol meanings in the storyboard.\n`;
-    
-    // Shot Sequence
+    // Shot Sequence - 直接进入镜头序列
     prompt += isZh ? `\n[镜头序列]\n` : `\n[SHOT SEQUENCE]\n`;
-    prompt += isZh ? `分镜编号对应关系：\n` : `Shot number correspondence:\n`;
     
     // 辅助函数：检测箭头方向
     const detectArrowDirection = (rotation: number): string => {
@@ -565,7 +560,7 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                                     {/* Reference Image Column */}
                                     {config.referenceImage && (
                                         <div className="w-1/5 flex-shrink-0 flex flex-col">
-                                            <div className="border-4 border-dashed border-red-500 bg-white relative mt-8 flex-1">
+                                            <div className="border-4 border-dashed border-red-500 bg-white relative flex-1">
                                                  <div className="absolute -top-8 left-0 shadow-sm bg-red-500 text-white text-[12px] font-bold px-3 py-1 z-10 tracking-widest uppercase rounded-sm min-h-[28px] flex items-center">REF SUBJECT</div>
                                                 <img src={config.referenceImage} className="w-full h-full object-contain block" />
                                             </div>
