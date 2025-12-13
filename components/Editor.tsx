@@ -144,7 +144,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                     
                     // 模拟自动识别主体（实际项目中应调用AI接口）
                     setTimeout(() => {
-                        // 假设识别到一个主要主体
+                        // 假设识别到一个主体
                         const mockSubjects = [
                             { x: 20, y: 30, width: 80, height: 100, color: '#FF5733' }
                         ];
@@ -1158,7 +1158,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                     <div 
                                         className="absolute top-2 left-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded"
                                     >
-                                        主体区域
+                                        {t(lang, 'refSubject')}
                                     </div>
                                     
                                     {/* 可调节手柄 */}
@@ -1176,24 +1176,25 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                             {/* 自动识别的主体框（未选择时显示） */}
                             {detectedSubjects.length > 0 && !selectedArea && (
                                 <div 
-                                    className="absolute border-3 border-blue-500 pointer-events-auto cursor-pointer transition-all hover:ring-2 hover:ring-white"
+                                    className="absolute border-3 pointer-events-auto cursor-pointer transition-all ring-2 ring-white shadow-xl"
                                     style={{
                                         left: detectedSubjects[0].x,
                                         top: detectedSubjects[0].y,
                                         width: detectedSubjects[0].width,
                                         height: detectedSubjects[0].height,
-                                        backgroundColor: 'rgba(59, 130, 246, 0.2)'
+                                        backgroundColor: 'rgba(51, 255, 87, 0.125)',
+                                        borderColor: 'rgb(51, 255, 87)'
                                     }}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setSelectedArea(detectedSubjects[0]);
                                     }}
-                                    title="点击选择主体区域"
+                                    title="选择主体"
                                 >
                                     <div 
-                                        className="absolute top-1 left-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded"
+                                        className="absolute top-2 left-1 bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded"
                                     >
-                                        主体区域
+                                        {t(lang, 'refSubject')}
                                     </div>
                                 </div>
                             )}

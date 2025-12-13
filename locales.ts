@@ -63,7 +63,7 @@ export const translations = {
     addCustomSymbol: "Add Icon",
     addRefImage: "Add Ref Image",
     refImageLabel: "Reference Image",
-    refSubject: "REF SUBJECT",
+    refSubject: "Reference Subject",
     storyboardFrames: "STORYBOARD FRAMES",
     page: "Page",
     downloadImage: "Download Image",
