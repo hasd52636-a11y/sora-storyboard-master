@@ -1,14 +1,16 @@
 {
   "version": 2,
-  "build": {
-    "src": "package.json",
-    "use": "@vercel/static-build",
-    "config": {
-      "buildCommand": "npm run build",
-      "outputDirectory": "dist",
-      "installCommand": "npm install"
+  "builds": [
+    {
+      "use": "@vercel/static-build",
+      "src": "package.json",
+      "config": {
+        "buildCommand": "npm run build",
+        "outputDirectory": "dist",
+        "installCommand": "npm install"
+      }
     }
-  },
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
