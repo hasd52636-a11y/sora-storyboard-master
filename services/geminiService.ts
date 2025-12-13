@@ -332,10 +332,11 @@ function isStructuredScript(script: string): boolean {
     /^\s*Shot\s+[0-9]+/i // 镜头编号 (Shot 1, SHOT 2, etc.)
   ];
   
-  // 如果有任何模式匹配1次或更多，认为是结构化脚本
+  // 更严格的检测：需要至少匹配3次或以上才认为是结构化脚本
+  // 这样可以避免将普通文本错误地识别为结构化脚本
   return patterns.some(pattern => {
     const matches = script.match(pattern);
-    return matches && matches.length >= 1;
+    return matches && matches.length >= 3;
   });
 }
 
@@ -406,8 +407,17 @@ export const generateFrames = async (
   }
 
   if (!apiKey) {
-    console.warn("No API Key found, using mock data");
-    return mockFrames(config.frameCount);
+    console.warn("No API Key found, using mock data based on user input");
+    // 基于用户输入生成mock数据，而不是使用完全无关的mock数据
+    const userInput = config.script || "story scene";
+    return Array.from({ length: config.frameCount }, (_, i) => ({
+      id: i.toString(),
+      number: i + 1,
+      description: `${userInput} - Scene ${i + 1}: Narrative description`,
+      descriptionZh: `${userInput} - 第${i + 1}镜：剧情描述`,
+      visualPrompt: `${config.style.name} style storyboard sketch of ${userInput} - scene ${i + 1}`,
+      visualPromptZh: `${config.style.nameZh}风格分镜草图：${userInput} - 第${i + 1}镜`
+    }));
   }
 
   // Optimized System Prompt with "Analyze-Optimize-Verify" logic

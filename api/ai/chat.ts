@@ -80,15 +80,32 @@ export default async function handler(req: Request) {
                 ? `API failed with status ${status} (Rate Limit Exceeded). Showing cached result.` 
                 : `API failed with status ${status} (${statusText}). Showing cached result.`;
 
-            // 从请求体中获取目标分镜数量
+                    // 从请求体中获取目标分镜数量
             const frameCount = body.frameCount || 4; // 默认生成4个分镜
             
-            // 根据分镜数量生成相应数量的mock数据
+            // 从请求消息中提取用户输入的内容
+            let userInput = "story scene"; // 默认值
+            if (body.messages && body.messages.length > 0) {
+                const userMessage = body.messages.find((msg: any) => msg.role === "user");
+                if (userMessage && userMessage.content) {
+                    // 提取用户输入的核心内容（忽略系统提示词部分）
+                    const content = userMessage.content;
+                    const coreScriptMatch = content.match(/\[PROJECT SETTINGS\][\s\S]*?- Core Script: "([^"]*)"/);
+                    if (coreScriptMatch && coreScriptMatch[1]) {
+                        userInput = coreScriptMatch[1];
+                    } else {
+                        // 如果没有找到结构化的核心脚本，使用整个用户内容的前100个字符
+                        userInput = content.substring(0, 100).trim();
+                    }
+                }
+            }
+            
+            // 根据分镜数量和用户输入生成相应数量的mock数据
             const mockFrames = Array.from({ length: frameCount }, (_, i) => ({
-                visualPrompt: `storyboard sketch of scene ${i + 1}, minimalist style`,
-                visualPromptZh: `第${i + 1}镜分镜草图，极简风格`,
-                description: `Scene ${i + 1}: Narrative description of the scene`,
-                descriptionZh: `第${i + 1}镜：场景的剧情描述`
+                visualPrompt: `${userInput} - scene ${i + 1}, storyboard sketch, minimalist style`,
+                visualPromptZh: `${userInput} - 第${i + 1}镜，分镜草图，极简风格`,
+                description: `${userInput} - Scene ${i + 1}: Narrative description of the scene`,
+                descriptionZh: `${userInput} - 第${i + 1}镜：场景的剧情描述`
             }));
 
             // 降级模板 (所有降级响应都通过 withCORSHeaders 确保兼容)
@@ -115,12 +132,29 @@ export default async function handler(req: Request) {
         // 从请求体中获取目标分镜数量
         const frameCount = body.frameCount || 4; // 默认生成4个分镜
         
-        // 根据分镜数量生成相应数量的mock数据
+        // 从请求消息中提取用户输入的内容
+        let userInput = "story scene"; // 默认值
+        if (body.messages && body.messages.length > 0) {
+            const userMessage = body.messages.find((msg: any) => msg.role === "user");
+            if (userMessage && userMessage.content) {
+                // 提取用户输入的核心内容（忽略系统提示词部分）
+                const content = userMessage.content;
+                const coreScriptMatch = content.match(/\[PROJECT SETTINGS\][\s\S]*?- Core Script: "([^"]*)"/);
+                if (coreScriptMatch && coreScriptMatch[1]) {
+                    userInput = coreScriptMatch[1];
+                } else {
+                    // 如果没有找到结构化的核心脚本，使用整个用户内容的前100个字符
+                    userInput = content.substring(0, 100).trim();
+                }
+            }
+        }
+        
+        // 根据分镜数量和用户输入生成相应数量的mock数据
         const mockFrames = Array.from({ length: frameCount }, (_, i) => ({
-            visualPrompt: `storyboard sketch of scene ${i + 1}, minimalist style`,
-            visualPromptZh: `第${i + 1}镜分镜草图，极简风格`,
-            description: `Scene ${i + 1}: Narrative description of the scene`,
-            descriptionZh: `第${i + 1}镜：场景的剧情描述`
+            visualPrompt: `${userInput} - scene ${i + 1}, storyboard sketch, minimalist style`,
+            visualPromptZh: `${userInput} - 第${i + 1}镜，分镜草图，极简风格`,
+            description: `${userInput} - Scene ${i + 1}: Narrative description of the scene`,
+            descriptionZh: `${userInput} - 第${i + 1}镜：场景的剧情描述`
         }));
 
         return withCORSHeaders(new Response(JSON.stringify({
