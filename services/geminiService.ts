@@ -15,25 +15,7 @@ const getPlaceholderImage = (text: string) => {
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 };
 
-export const testApiConnection = async (config: ApiConfig, type: 'llm' | 'image' = 'llm'): Promise<boolean> => {
-  const apiKey = getApiKey(config);
-  if (!apiKey) return false;
-  
-  try {
-    if (config.provider === 'gemini') {
-       const ai = new GoogleGenAI({ apiKey });
-       // Simple test generation
-       await ai.models.generateContent({
-         model: type === 'image' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash',
-         contents: type === 'image' ? 'A simple drawing of a cat' : 'Hello',
-         config: { maxOutputTokens: type === 'image' ? 1 : 1 }
-       });
-       return true;
-    } else {
-       // OpenAI Compatible Test
-       const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
-       
-       // 生成签名的辅助函数（用于速创API的签名校验）
+// 生成签名的辅助函数（用于速创API的签名校验）
 const generateSignature = (params: Record<string, string>, key: string): string => {
   // 1. 对参数按照键名进行排序
   const sortedKeys = Object.keys(params).sort();
@@ -165,6 +147,24 @@ const generateSignature = (params: Record<string, string>, key: string): string 
   };
   return md5Hash(secretStr);
 };
+
+export const testApiConnection = async (config: ApiConfig, type: 'llm' | 'image' = 'llm'): Promise<boolean> => {
+  const apiKey = getApiKey(config);
+  if (!apiKey) return false;
+  
+  try {
+    if (config.provider === 'gemini') {
+       const ai = new GoogleGenAI({ apiKey });
+       // Simple test generation
+       await ai.models.generateContent({
+         model: type === 'image' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash',
+         contents: type === 'image' ? 'A simple drawing of a cat' : 'Hello',
+         config: { maxOutputTokens: type === 'image' ? 1 : 1 }
+       });
+       return true;
+    } else {
+       // OpenAI Compatible Test
+       const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
 
 // 在生产环境中直接使用原始API地址，开发环境使用代理
        const isProduction = import.meta.env.PROD;
