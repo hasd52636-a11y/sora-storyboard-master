@@ -38,6 +38,7 @@ const SymbolIcon: React.FC<SymbolIconProps> = ({ category, icon, className = '',
   if (category === SymbolCategory.CAMERA) strokeColor = '#2563EB'; // Blue-600
   if (category === SymbolCategory.ACTION) strokeColor = '#EA580C'; // Orange-600
   if (category === SymbolCategory.DIALOGUE) strokeColor = '#059669'; // Emerald-600
+  if (category === SymbolCategory.EMOTION) strokeColor = '#C026D3'; // Purple-600 - 鲜艳的紫色，与其他颜色显著区别
 
   // SVG Paths Map
   const getPath = (key: string) => {
@@ -135,6 +136,93 @@ const SymbolIcon: React.FC<SymbolIconProps> = ({ category, icon, className = '',
         case 'speech-bubble': return (
             <>
                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </>
+        );
+
+        // Emotion
+        case 'happy': return (
+            <>
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="8" cy="10" r="1" fill="currentColor" />
+                <circle cx="16" cy="10" r="1" fill="currentColor" />
+                <path d="M8 14c1.5 2 4.5 2 6 0" />
+            </>
+        );
+        case 'angry': return (
+            <>
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 10l1.5 1.5" />
+                <path d="M16 10l-1.5 1.5" />
+                <path d="M8 14l4-2 4 2" />
+                <path d="M12 8l0-2" />
+            </>
+        );
+        case 'sad': return (
+            <>
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="8" cy="10" r="1" fill="currentColor" />
+                <circle cx="16" cy="10" r="1" fill="currentColor" />
+                <path d="M8 14c1.5-2 4.5-2 6 0" />
+            </>
+        );
+        case 'laughing': return (
+            <>
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="8" cy="10" r="1" fill="currentColor" />
+                <circle cx="16" cy="10" r="1" fill="currentColor" />
+                <path d="M8 14c1.5 2 4.5 2 6 0" />
+                <path d="M7 8l1.5-1.5" />
+                <path d="M17 8l-1.5-1.5" />
+            </>
+        );
+        case 'surprised': return (
+            <>
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="8" cy="10" r="1" fill="currentColor" />
+                <circle cx="16" cy="10" r="1" fill="currentColor" />
+                <circle cx="12" cy="14" r="1" fill="currentColor" />
+            </>
+        );
+        case 'confused': return (
+            <>
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="8" cy="10" r="1" fill="currentColor" />
+                <circle cx="16" cy="10" r="1" fill="currentColor" />
+                <path d="M10 14c0.5 1 1.5 1 2 0" />
+                <path d="M12 8l0-2" />
+                <path d="M14 8l-1-1" />
+            </>
+        );
+        case 'fearful': return (
+            <>
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 9l1.5 1.5" />
+                <path d="M16 9l-1.5 1.5" />
+                <path d="M8 15l4-2 4 2" />
+                <path d="M12 8l0-3" />
+            </>
+        );
+
+        // Additional Action Symbols
+        case 'jump-arrow': return (
+            <>
+                <path d="M12 2v16" />
+                <path d="M8 12l4 4 4-4" />
+            </>
+        );
+        case 'rotate-arrow': return (
+            <>
+                <path d="M12 2a10 10 0 0 1 10 10" />
+                <path d="M12 12h10" />
+                <path d="M20 10l2 2-2 2" />
+            </>
+        );
+        case 'continuous-jump-arrow': return (
+            <>
+                <path d="M12 2v16" />
+                <path d="M8 6l4 4 4-4" />
+                <path d="M8 12l4 4 4-4" />
+                <path d="M8 18l4 4 4-4" />
             </>
         );
 

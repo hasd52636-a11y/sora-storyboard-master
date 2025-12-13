@@ -30,6 +30,7 @@ export enum SymbolCategory {
   CAMERA = 'Camera',
   ACTION = 'Action',
   DIALOGUE = 'Dialogue',
+  EMOTION = 'Emotion',
   CUSTOM = 'Custom',
 }
 
@@ -120,6 +121,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export const STYLES: StyleOption[] = [
+  { id: 'custom', name: 'Custom Style', nameZh: '自定义风格', color: '#999', description: 'Custom visual style', descriptionZh: '自定义视觉风格' },
   { id: 'scifi', name: 'Sci-Fi', nameZh: '科幻未来', color: '#06b6d4', description: 'Futuristic, clean lines, neon accents', descriptionZh: '未来主义，线条干净，霓虹点缀' },
   { id: 'cyberpunk', name: 'Cyberpunk', nameZh: '赛博朋克', color: '#d946ef', description: 'High contrast, grit, tech elements', descriptionZh: '高对比度，科技感，坚硬质感' },
   { id: 'ink', name: 'Ink Wash', nameZh: '水墨国风', color: '#1e293b', description: 'Traditional Asian ink style, fluid', descriptionZh: '传统水墨，飘逸流畅' },
@@ -130,7 +132,6 @@ export const STYLES: StyleOption[] = [
   { id: 'lego', name: 'Voxel/Brick', nameZh: '乐高积木', color: '#c0392b', description: '3D blocks, voxel art', descriptionZh: '3D积木，体素艺术' },
   { id: 'steampunk', name: 'Steampunk', nameZh: '蒸汽朋克', color: '#d35400', description: 'Brass, gears, victorian retro', descriptionZh: '黄铜齿轮，维多利亚复古' },
   { id: 'vangogh', name: 'Van Gogh', nameZh: '梵高抽象', color: '#f1c40f', description: 'Oil painting, swirling strokes', descriptionZh: '油画质感，漩涡笔触' },
-  { id: 'custom', name: 'Custom Style', nameZh: '自定义风格', color: '#999', description: 'Custom visual style', descriptionZh: '自定义视觉风格' },
 ];
 
 export const SYMBOLS_LIBRARY = {
@@ -153,8 +154,20 @@ export const SYMBOLS_LIBRARY = {
     { name: 'Turn', icon: 'turn' },
     { name: 'Fight', icon: 'fight' },
     { name: 'Fall', icon: 'fall' },
+    { name: 'Jump Arrow', icon: 'jump-arrow' },
+    { name: 'Rotate Arrow', icon: 'rotate-arrow' },
+    { name: 'Continuous Jump Arrow', icon: 'continuous-jump-arrow' },
   ],
   [SymbolCategory.DIALOGUE]: [
     { name: 'Speech Bubble', icon: 'speech-bubble' },
+  ],
+  [SymbolCategory.EMOTION]: [
+    { name: 'Happy', icon: 'happy' },
+    { name: 'Angry', icon: 'angry' },
+    { name: 'Sad', icon: 'sad' },
+    { name: 'Laughing', icon: 'laughing' },
+    { name: 'Surprised', icon: 'surprised' },
+    { name: 'Confused', icon: 'confused' },
+    { name: 'Fearful', icon: 'fearful' },
   ],
 };

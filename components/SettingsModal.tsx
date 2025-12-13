@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AppSettings, ApiConfig, ApiPreset } from '../types';
 import { translations, t } from '../locales';
 import { testApiConnection } from '../services/geminiService';
+import CryptoJS from 'crypto-js';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -42,8 +43,58 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   const [activeTab, setActiveTab] = useState<'general' | 'api'>('api');
   const [testStatus, setTestStatus] = useState<{[key: string]: 'idle' | 'loading' | 'success' | 'failed'}>({});
   
+  // 用于加密和解密API密钥的密钥（与App.tsx中保持一致）
+  const encryptionKey = 'storyboard-master-secret-key';
+
+  // 加密API密钥
+  const encryptApiKey = (key: string): string => {
+    if (!key) return '';
+    return CryptoJS.AES.encrypt(key, encryptionKey).toString();
+  };
+
+  // 解密API密钥
+  const decryptApiKey = (encryptedKey: string): string => {
+    if (!encryptedKey) return '';
+    try {
+      const bytes = CryptoJS.AES.decrypt(encryptedKey, encryptionKey);
+      if (bytes && typeof bytes.toString === 'function') {
+        return bytes.toString(CryptoJS.enc.Utf8);
+      } else {
+        console.error('Invalid decryption result:', bytes);
+        return '';
+      }
+    } catch (error) {
+      console.error('Failed to decrypt API key:', error);
+      return '';
+    }
+  };
+
+  // 从localStorage加载已验证的配置，并解密API密钥
+  const loadVerifiedList = (): {llm: ApiConfig[], image: ApiConfig[]} => {
+    const saved = localStorage.getItem('verifiedList');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // 解密API密钥
+        return {
+          llm: parsed.llm.map((config: ApiConfig) => ({
+            ...config,
+            apiKey: decryptApiKey(config.apiKey)
+          })),
+          image: parsed.image.map((config: ApiConfig) => ({
+            ...config,
+            apiKey: decryptApiKey(config.apiKey)
+          }))
+        };
+      } catch (error) {
+        console.error('Failed to parse verifiedList:', error);
+      }
+    }
+    return { llm: [], image: [] };
+  };
+  
   // Store verified configurations [key]: { config }
-  const [verifiedList, setVerifiedList] = useState<{llm: ApiConfig[], image: ApiConfig[]}>({ llm: [], image: [] });
+  const [verifiedList, setVerifiedList] = useState<{llm: ApiConfig[], image: ApiConfig[]}>(loadVerifiedList);
   
   // Track visibility of API keys
   const [showKeys, setShowKeys] = useState<{[key: string]: boolean}>({
@@ -99,6 +150,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
     }));
   };
 
+  // 保存已验证的配置到localStorage，并加密API密钥
+  const saveVerifiedList = (list: {llm: ApiConfig[], image: ApiConfig[]}) => {
+    // 加密API密钥
+    const encryptedList = {
+      llm: list.llm.map(config => ({
+        ...config,
+        apiKey: encryptApiKey(config.apiKey)
+      })),
+      image: list.image.map(config => ({
+        ...config,
+        apiKey: encryptApiKey(config.apiKey)
+      }))
+    };
+    localStorage.setItem('verifiedList', JSON.stringify(encryptedList));
+  };
+  
   const runApiTest = async (type: 'llm' | 'image') => {
     setTestStatus(prev => ({...prev, [type]: 'loading'}));
     const config = type === 'llm' ? localSettings.llm : localSettings.image;
@@ -113,7 +180,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
            const list = prev[type];
            // Simple duplicate check
            if (!list.some(item => item.baseUrl === config.baseUrl && item.model === config.model && item.apiKey === config.apiKey)) {
-              return { ...prev, [type]: [...list, { ...config }] };
+              const newList = { ...prev, [type]: [...list, { ...config }] };
+              saveVerifiedList(newList);
+              return newList;
            }
            return prev;
        });
@@ -130,10 +199,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   };
 
   const removeVerifiedConfig = (type: 'llm' | 'image', index: number) => {
-      setVerifiedList(prev => ({
-          ...prev,
-          [type]: prev[type].filter((_, i) => i !== index)
-      }));
+      setVerifiedList(prev => {
+          const newList = {
+              ...prev,
+              [type]: prev[type].filter((_, i) => i !== index)
+          };
+          saveVerifiedList(newList);
+          return newList;
+      });
   };
 
   const renderApiSection = (type: 'llm' | 'image') => {

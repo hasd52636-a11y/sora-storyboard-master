@@ -6,7 +6,7 @@ import Setup from './components/Setup';
 import Editor from './components/Editor';
 import Export from './components/Export';
 import SettingsModal from './components/SettingsModal';
-import { generateFrames, generateFrameImage } from './services/geminiService';
+import { generateFrames, generateFrameImage, quickDraft } from './services/geminiService';
 import { t } from './locales';
 import CryptoJS from 'crypto-js';
 
@@ -25,7 +25,13 @@ const App: React.FC = () => {
     if (!encryptedKey) return '';
     try {
       const bytes = CryptoJS.AES.decrypt(encryptedKey, encryptionKey);
-      return bytes.toString(CryptoJS.enc.Utf8);
+      // 确保bytes对象存在且有toString方法
+      if (bytes && typeof bytes.toString === 'function') {
+        return bytes.toString(CryptoJS.enc.Utf8);
+      } else {
+        console.error('Invalid decryption result:', bytes);
+        return '';
+      }
     } catch (error) {
       console.error('Failed to decrypt API key:', error);
       return '';
@@ -102,47 +108,49 @@ const App: React.FC = () => {
         visualPrompt: p.visualPrompt!,
         visualPromptZh: p.visualPromptZh || p.visualPrompt!,
         symbols: [],
-        isGenerating: true,
+        isGenerating: false,
         imageUrl: undefined
       }));
       setFrames(initialFrames);
+      // 更新配置中的分镜数量为实际生成的数量
+      setConfig(prev => ({ ...prev, frameCount: initialFrames.length }));
       setCurrentStep(WorkflowStep.EDITOR);
       setIsLoading(false);
       
-      // 并发生成图片，限制并发数为3
-      const framesWithImages = [...initialFrames];
-      const concurrency = 3;
-      const results = await Promise.all(
-        framesWithImages.map(async (frame, i) => {
-          try {
-            // 使用并发控制，每3个一组延迟执行
-            const delayTime = Math.floor(i / concurrency) * 1000;
-            if (delayTime > 0) {
-              await new Promise(resolve => setTimeout(resolve, delayTime));
-            }
-            
-            const url = await generateFrameImage(frame, config.style.name, appSettings);
-            return { index: i, url, error: false };
-          } catch (e) {
-            console.error(`生成第${i+1}张分镜图失败:`, e);
-            return { index: i, url: undefined, error: true };
-          }
-        })
-      );
-      
-      // 更新所有生成结果
-      for (const result of results) {
-        framesWithImages[result.index] = {
-          ...framesWithImages[result.index],
-          imageUrl: result.error ? undefined : result.url,
-          isGenerating: false,
-          generationError: result.error
+      // 只生成第一张分镜的图片，其他分镜留待后续在Editor中逐个生成
+      if (initialFrames.length > 0) {
+        const firstFrame = initialFrames[0];
+        const framesWithImages = [...initialFrames];
+        framesWithImages[0] = {
+          ...firstFrame,
+          isGenerating: true
         };
+        setFrames([...framesWithImages]);
+        
+        try {
+          // 调用 quickDraft 生成第一张分镜的草图
+          const draftResult = await quickDraft(firstFrame.visualPrompt, appSettings.llm.apiKey);
+          
+          framesWithImages[0] = {
+            ...framesWithImages[0],
+            imageUrl: draftResult.data?.[0]?.url,
+            isGenerating: false,
+            generationError: !draftResult.data?.[0]?.url,
+            isDraft: true // 标记为草稿图
+          };
+        } catch (e) {
+          console.error(`生成第1张分镜草图失败:`, e);
+          framesWithImages[0] = {
+            ...framesWithImages[0],
+            isGenerating: false,
+            generationError: true
+          };
+        }
+        
+        setFrames([...framesWithImages]);
       }
       
-      setFrames([...framesWithImages]);
-      
-      // 确保所有分镜生成完成后隐藏全局动效
+      // 生成完成后隐藏全局动效
       setIsGlobalLoading(false);
     } catch (e) {
       console.error(e);
@@ -159,6 +167,7 @@ const App: React.FC = () => {
     updatedFrames[frameIndex].isGenerating = true;
     setFrames(updatedFrames);
     try {
+      // 精修时调用 generateFrameImage 生成高分辨率图片
       const url = await generateFrameImage(updatedFrames[frameIndex], config.style.name, appSettings);
       const finalFrames = [...frames];
       // 重新生成图片时清除用户添加的符号
@@ -166,7 +175,8 @@ const App: React.FC = () => {
         ...finalFrames[frameIndex], 
         imageUrl: url, 
         isGenerating: false,
-        symbols: [] // 清空符号数组
+        symbols: [], // 清空符号数组
+        isDraft: false // 标记为精修图
       };
       setFrames(finalFrames);
     } catch(e) {
@@ -178,7 +188,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 text-gray-800 overflow-x-hidden font-sans">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 text-gray-800 overflow-x-hidden font-sans">
       <SettingsModal 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)}
@@ -250,7 +260,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="pt-6 pb-12">
+      <main className="flex-1 pt-6 pb-12 overflow-y-auto">
         {/* Global Loading Animation */}
         {isGlobalLoading && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">

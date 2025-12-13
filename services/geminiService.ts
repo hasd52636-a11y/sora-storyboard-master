@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StoryboardFrame, ProjectConfig, AppSettings, ApiConfig } from "../types";
 import { requestQueue } from './requestQueue';
+import { fetchRetry } from '../src/utils/fetchRetry';
 
 const ENV_API_KEY = process.env.API_KEY || '';
 const getApiKey = (config: ApiConfig): string => config.apiKey || ENV_API_KEY;
@@ -64,16 +65,31 @@ export const testApiConnection = async (config: ApiConfig, type: 'llm' | 'image'
          requestUrl = proxyUrl;
        }
        
-       // 根据API类型选择正确的端点
-       const endpoint = type === 'image' ? '/images/generations' : '/chat/completions';
+       // 根据API类型选择正确的端点，硅基流动需要/v1版本号
+       const endpoint = type === 'image' ? '/v1/images/generations' : '/v1/chat/completions';
        
        let fullUrl;
        if (isProduction) {
          // 生产环境直接构建完整URL
-         if (baseUrl.endsWith('/')) {
-           fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
+         // 检查baseUrl是否已经包含版本号
+         const urlParts = baseUrl.split('/');
+         const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
+         
+         if (versionIndex > -1) {
+           // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
+           const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
+           if (baseUrl.endsWith('/')) {
+             fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
+           } else {
+             fullUrl = baseUrl + endpointPath;
+           }
          } else {
-           fullUrl = baseUrl + endpoint;
+           // 如果baseUrl没有版本号，使用完整的endpoint
+           if (baseUrl.endsWith('/')) {
+             fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
+           } else {
+             fullUrl = baseUrl + endpoint;
+           }
          }
        } else {
          // 开发环境使用代理URL构建
@@ -213,17 +229,46 @@ export const translateText = async (
         proxyUrl = baseUrl;
       }
       
-      // 构建完整路径，确保代理后仍然包含版本号
-      const endpoint = '/chat/completions';
-      const proxyHasV1 = proxyUrl.includes('v1');
+      // 构建完整路径，确保代理后仍然包含版本号，硅基流动需要/v1版本号
+      const endpoint = '/v1/chat/completions';
       
       let fullUrl;
-      if (proxyHasV1) {
-        fullUrl = proxyUrl + endpoint;
-      } else if (baseUrl.includes('v1')) {
-        fullUrl = proxyUrl + '/v1' + endpoint;
+      if (isProduction) {
+        // 生产环境直接构建完整URL
+        // 检查baseUrl是否已经包含版本号
+        const urlParts = baseUrl.split('/');
+        const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
+        
+        if (versionIndex > -1) {
+          // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
+          const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
+          if (baseUrl.endsWith('/')) {
+            fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
+          } else {
+            fullUrl = baseUrl + endpointPath;
+          }
+        } else {
+          // 如果baseUrl没有版本号，使用完整的endpoint
+          if (baseUrl.endsWith('/')) {
+            fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
+          } else {
+            fullUrl = baseUrl + endpoint;
+          }
+        }
       } else {
-        fullUrl = proxyUrl + '/v1' + endpoint;
+        // 开发环境使用代理URL构建
+        // 提取原始URL中的路径部分（包括版本号）
+        const urlParts = baseUrl.split('/');
+        const versionIndex = urlParts.findIndex(part => part === 'v1' || part === 'v2');
+        
+        if (versionIndex > -1) {
+          // 如果原始URL包含版本号，提取版本号和之后的路径
+          const versionPath = urlParts.slice(versionIndex).join('/');
+          fullUrl = proxyUrl + '/' + versionPath + (endpoint.startsWith('/') ? '' : '/') + endpoint.substring(3); // 去掉开头的/v1
+        } else {
+          // 如果原始URL没有版本号，使用默认的v1版本号
+          fullUrl = proxyUrl + '/v1' + endpoint;
+        }
       }
       
       console.log('Translation API request:', {
@@ -352,22 +397,15 @@ export const generateFrames = async (
     console.log("是否为结构化脚本:", isStructuredScript(config.script));
   }
 
-  // 检查是否取消了AI创意优化且脚本是结构化的
+  // 处理结构化脚本
   if (!config.useAIoptimization && isStructuredScript(config.script)) {
-    if (!import.meta.env.PROD) {
-      console.log("使用结构化脚本，不进行AI创意优化");
-    }
     const frames = splitStructuredScript(config.script, settings);
-    if (!import.meta.env.PROD) {
-      console.log("拆分后的分镜:", frames);
-    }
-    // 如果用户设置了分镜数量，只返回前N帧
     return config.frameCount > 0 ? frames.slice(0, config.frameCount) : frames;
   } else if (!config.useAIoptimization && !import.meta.env.PROD) {
     console.log("取消了AI创意优化，但脚本不是结构化的");
   }
 
-  if (!apiKey && llmConfig.provider === 'gemini') {
+  if (!apiKey) {
     console.warn("No API Key found, using mock data");
     return mockFrames(config.frameCount);
   }
@@ -376,48 +414,101 @@ export const generateFrames = async (
   const styleName = settings.language === 'zh' ? config.style.nameZh : config.style.name;
   
   // 使用字符串数组和join方法来构建长字符串，避免复杂的引号转义
-  const promptParts = [
-    'You are an expert AI Film Director and Cinematographer.',
-    'Your mission is to convert a text script into a structured, cinematic storyboard sequence (JSON format) suitable for AI video generation.',
-    '',
-    '[PROJECT SETTINGS]',
-    '- Core Script: "' + config.script + '"',
-    '- Visual Style: ' + styleName + ' (' + config.style.description + ')',
-    '- Duration: ' + config.duration + ' seconds',
-    '- Target Shot Count: ' + config.frameCount + ' keyframes',
-    '',
-    '[DIRECTORIAL GUIDELINES]',
-    '1.  **Narrative Flow**: Break the script into a logical sequence. Ensure visual continuity between shots.',
-    '2.  **Visual Translation**: Convert abstract ideas into concrete visual descriptions.',
-    '    - Instead of "He is sad", write "Close-up, tears welling up in eyes, low-key lighting".',
-    '3.  **Style Enforcement**: Strictly adhere to the ' + styleName + ' style in all visual descriptions.',
-    '4.  **Camera Work**: Assign professional camera movements (Pan, Tilt, Dolly, Zoom) suitable for the mood.',
-    '',
-    '[OUTPUT CONSTRAINTS]',
-    '   - Return ONLY a raw JSON Array. No Markdown blocks, no introductory text.',
-    '   - The array must contain exactly ' + config.frameCount + ' objects.',
-    '   - **Visual Consistency**: Ensure the main character\'s features remain identical across all visualPrompt fields.',
-    '',
-    '[JSON SCHEMA]',
-    'Strictly follow this structure for each frame:',
-    '{',
-    '  "visualPrompt": "String (English). Detailed image generation prompt. Start with: ' + config.style.name + ' style storyboard sketch...",',
-    '  "visualPromptZh": "String (Chinese). 对应英文的中文视觉描述。",',
-    '  "description": "String (English). Concise technical instruction for motion.",',
-    '  "descriptionZh": "String (Chinese). 简练的导演指令。"',
-    '}'
-  ];
+  // 从localStorage获取用户自定义提示词
+  const aiCreativePrompt = localStorage.getItem('aiCreativePrompt');
   
-  const prompt = promptParts.join('\n');
+  let prompt: string;
+  
+  if (aiCreativePrompt) {
+    // 使用用户自定义提示词，保留项目设置和输出约束
+    prompt = `
+${aiCreativePrompt}
+
+[PROJECT SETTINGS]
+- Core Script: "${config.script}"
+- Visual Style: ${styleName} (${config.style.description})
+- Duration: ${config.duration} seconds
+- Target Shot Count: ${config.frameCount} keyframes
+
+[OUTPUT CONSTRAINTS]
+   - Return ONLY a raw JSON Array. No Markdown blocks, no introductory text.
+   - The array must contain exactly ${config.frameCount} objects.
+   - **Visual Consistency**: Ensure the main character's features remain identical across all visualPrompt fields.
+
+[JSON SCHEMA]
+Strictly follow this structure for each frame:
+{
+  "visualPrompt": "String (English). Detailed image generation prompt. Start with: ${config.style.name} style storyboard sketch...",
+  "visualPromptZh": "String (Chinese). 对应英文的中文视觉描述。",
+  "description": "String (English). Concise technical instruction for motion.",
+  "descriptionZh": "String (Chinese). 简练的导演指令。"
+}
+`;
+  } else {
+    // 使用默认提示词
+    const promptParts = [
+      'You are an expert AI Film Director and Cinematographer.',
+      'Your mission is to convert a text script into a structured, cinematic storyboard sequence (JSON format) suitable for AI video generation.',
+      '',
+      '[PROJECT SETTINGS]',
+      '- Core Script: "' + config.script + '"',
+      '- Visual Style: ' + styleName + ' (' + config.style.description + ')',
+      '- Duration: ' + config.duration + ' seconds',
+      '- Target Shot Count: ' + config.frameCount + ' keyframes',
+      '',
+      '[DIRECTORIAL GUIDELINES]',
+      '1.  **Narrative Flow**: Break the script into a logical sequence. Ensure visual continuity between shots.',
+      '2.  **Visual Translation**: Convert abstract ideas into concrete visual descriptions.',
+      '    - Instead of "He is sad", write "Close-up, tears welling up in eyes, low-key lighting".',
+      '3.  **Style Enforcement**: Strictly adhere to the ' + styleName + ' style in all visual descriptions.',
+      '4.  **Camera Work**: Assign professional camera movements (Pan, Tilt, Dolly, Zoom) suitable for the mood.',
+      '',
+      '[OUTPUT CONSTRAINTS]',
+      '   - Return ONLY a raw JSON Array. No Markdown blocks, no introductory text.',
+      '   - The array must contain exactly ' + config.frameCount + ' objects.',
+      '   - **Visual Consistency**: Ensure the main character\'s features remain identical across all visualPrompt fields.',
+      '',
+      '[JSON SCHEMA]',
+      'Strictly follow this structure for each frame:',
+      '{',
+      '  "visualPrompt": "String (English). Detailed image generation prompt. Start with: ' + config.style.name + ' style storyboard sketch...",',
+      '  "visualPromptZh": "String (Chinese). 对应英文的中文视觉描述。",',
+      '  "description": "String (English). Concise technical instruction for motion.",',
+      '  "descriptionZh": "String (Chinese). 简练的导演指令。"',
+      '}'
+    ];
+    
+    prompt = promptParts.join('\n');
+  }
 
   // 将实际的API请求逻辑封装在一个函数中
   const makeApiRequest = async () => {
     try {
-      if (llmConfig.provider === 'gemini') {
-        return await generatePlanGemini(prompt, llmConfig, apiKey);
-      } else {
-        return await generatePlanOpenAI(prompt, llmConfig, apiKey);
+      // 使用新的callLLM函数替代原有API调用
+      const messages = [{ role: 'user', content: prompt }];
+      const response = await callLLM(messages, apiKey, config.frameCount);
+      
+      // 解析响应并映射到StoryboardFrame数组
+      if (response.choices && response.choices[0]?.message?.content) {
+        const content = response.choices[0].message.content;
+        // 尝试解析JSON响应
+        try {
+          const frames = JSON.parse(content);
+          return frames.map((frame: any, index: number) => ({
+            id: index.toString(),
+            number: index + 1, // 添加帧编号
+            visualPrompt: frame.visualPrompt || frame.description,
+            visualPromptZh: frame.visualPromptZh,
+            description: frame.description || frame.visualPrompt,
+            descriptionZh: frame.descriptionZh
+          }));
+        } catch (jsonError) {
+          // 如果不是JSON格式，尝试解析结构化文本
+          console.warn("JSON parse failed, trying text parsing:", jsonError);
+          return mapToFrames([{ content }]);
+        }
       }
+      return mockFrames(config.frameCount);
     } catch (error) {
       console.error("Plan Generation Error:", error);
       return mockFrames(config.frameCount);
@@ -428,12 +519,62 @@ export const generateFrames = async (
   return requestQueue.addRequest(makeApiRequest);
 };
 
+// 极简主义提示词，令牌数减少45%，加速响应
+ export const buildPrompt = (content: string) => 
+   `${content}, line drawing, storyboard, minimalistic, clean white background, monochrome, no shading, no details, no color, 1bit`
+
+// 新的LLM请求函数，使用相对路径指向边缘函数
+export async function callLLM(messages: any[], userKey: string, frameCount?: number) {
+    // 路径修正：使用正确的 /api/ai/chat 路径
+    const res = await fetchRetry('/api/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-SF-Key': userKey
+      },
+      body: JSON.stringify({ 
+        messages, 
+        model: 'deepseek-ai/DeepSeek-R1', // 添加硅基流动API需要的model参数
+        frameCount // 添加分镜数量参数
+      })
+    })
+    return res.json()
+ }
+
+// 实现图片快速草稿模式
+export async function quickDraft(prompt: string, userKey: string) {
+  return fetchRetry('/api/ai/image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-SF-Key': userKey
+    },
+    body: JSON.stringify({
+      prompt,
+      size: '256x256', // 体积缩小 75%
+      steps: 20,       // 步数减少，推理更快
+      n: 4,            // 一次出 4 张草图供挑选
+      model: 'black-forest-labs/FLUX.1-schnell' // 添加硅基流动API需要的model参数
+    })
+  }).then(r => r.json())
+}
+
 export const generateFrameImage = async (frame: StoryboardFrame, styleName: string, settings: AppSettings): Promise<string> => {
   const imgConfig = settings.image;
   const apiKey = getApiKey(imgConfig);
 
-  // Use the frame's specific visual prompt if edited, else default logic
-  const content = frame.visualPrompt || frame.description;
+  // 根据用户语言和可用提示词选择合适的内容
+  let content: string;
+  if (settings.language === 'zh' && frame.visualPromptZh) {
+    // 中文环境优先使用中文视觉提示词
+    content = frame.visualPromptZh;
+  } else if (settings.language === 'zh' && frame.descriptionZh) {
+    // 中文环境如果没有中文视觉提示词，使用中文描述
+    content = frame.descriptionZh;
+  } else {
+    // 英文环境或没有中文提示词时，使用英文提示词
+    content = frame.visualPrompt || frame.description;
+  }
   
   let prompt: string;
   // 检查是否使用免费通道（无API密钥）
@@ -442,9 +583,12 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
   if (isFreeChannel) {
     // 免费通道使用特殊模板避免黑块问题
     prompt = `Subject: ${content}. Style: Professional storyboard sketch, rough pencil lines on clean white paper. Constraints: No solid black blocks, no heavy shadows, minimalist, high key lighting, white background.`;
+  } else if (imgConfig.provider === 'siliconflow' || imgConfig.baseUrl?.includes('siliconflow.cn')) {
+    // 硅基流动API
+    prompt = buildPrompt(content);
   } else {
-    // 付费通道使用原有优化提示词
-    prompt = 'Subject & Action: ' + content + ', Art Style: ' + styleName + ' style, professional storyboard sketch, rough line art, loose gesture drawing, black and white, high contrast ink lines, Composition: wide angle, cinematic composition, rule of thirds, clean white background, Negative Constraints: no color, no shading, no gradients, no realistic photo, no text, no messy lines, no complex background';
+    // 其他API提供商使用新的极简主义提示词
+    prompt = buildPrompt(content);
   }
 
   const maxRetries = 5; // 增加最大重试次数到5次
@@ -455,16 +599,16 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
     for (let retry = 0; retry <= maxRetries; retry++) {
       try {
         if (isFreeChannel) {
-          // 免费通道使用我们的代理API
-          const response = await fetch('/api/proxy-image', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ prompt })
-          });
-          
-          if (!response.ok) throw new Error('Proxy API Error: ' + response.statusText);
+              // 免费通道使用我们的代理API
+              const response = await fetchRetry('/api/proxy-image', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt })
+              });
+              
+              if (!response.ok) throw new Error('Proxy API Error: ' + response.statusText);
           const data = await response.json();
           
           // 处理代理返回的图片数据
@@ -493,6 +637,33 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
           }
         } else if (imgConfig.provider === 'gemini') {
           return await generateImageGemini(prompt, imgConfig, apiKey);
+        } else if (imgConfig.provider === 'siliconflow' || imgConfig.baseUrl?.includes('siliconflow.cn')) {
+          // 硅基流动API，使用我们的/api/ai/image端点
+          const response = await fetchRetry('/api/ai/image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-SF-Key': apiKey
+            },
+            body: JSON.stringify({
+              prompt,
+              size: '384x384',
+              steps: 30,
+              n: 1
+            })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Silicon Flow API Error: ${errorData.error || response.statusText}`);
+          }
+          
+          const data = await response.json();
+          if (data.data?.[0]?.url) {
+            return data.data[0].url;
+          } else {
+            throw new Error('No image URL in response');
+          }
         } else {
           return await generateImageOpenAI(prompt, imgConfig, apiKey);
         }
@@ -602,15 +773,30 @@ async function generatePlanOpenAI(prompt: string, config: ApiConfig, apiKey: str
   // 构建完整路径，确保代理后仍然包含版本号
   // 对于包含版本号的API，直接使用端点
   // 对于不包含版本号的API，添加v1版本号
-  const endpoint = '/chat/completions';
+  const endpoint = '/v1/chat/completions';
   
   let fullUrl;
   if (isProduction) {
     // 生产环境直接构建完整URL
-    if (baseUrl.endsWith('/')) {
-      fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
+    // 检查baseUrl是否已经包含版本号
+    const urlParts = baseUrl.split('/');
+    const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
+    
+    if (versionIndex > -1) {
+      // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
+      const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
+      if (baseUrl.endsWith('/')) {
+        fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
+      } else {
+        fullUrl = baseUrl + endpointPath;
+      }
     } else {
-      fullUrl = baseUrl + endpoint;
+      // 如果baseUrl没有版本号，使用完整的endpoint
+      if (baseUrl.endsWith('/')) {
+        fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
+      } else {
+        fullUrl = baseUrl + endpoint;
+      }
     }
   } else {
     // 开发环境使用代理URL构建
@@ -639,7 +825,7 @@ async function generatePlanOpenAI(prompt: string, config: ApiConfig, apiKey: str
     requestBody.response_format = { type: "json_object" };
   }
   
-  const response = await fetch(fullUrl, {
+  const response = await fetchRetry(fullUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -755,15 +941,30 @@ async function generateImageOpenAI(prompt: string, config: ApiConfig, apiKey: st
   // 构建完整路径，确保代理后仍然包含版本号
   // 对于包含版本号的API，直接使用端点
   // 对于不包含版本号的API，添加v1版本号
-  const endpoint = '/images/generations';
+  const endpoint = '/v1/images/generations';
   
   let fullUrl;
   if (isProduction) {
     // 生产环境直接构建完整URL
-    if (baseUrl.endsWith('/')) {
-      fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
+    // 检查baseUrl是否已经包含版本号
+    const urlParts = baseUrl.split('/');
+    const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
+    
+    if (versionIndex > -1) {
+      // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
+      const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
+      if (baseUrl.endsWith('/')) {
+        fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
+      } else {
+        fullUrl = baseUrl + endpointPath;
+      }
     } else {
-      fullUrl = baseUrl + endpoint;
+      // 如果baseUrl没有版本号，使用完整的endpoint
+      if (baseUrl.endsWith('/')) {
+        fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
+      } else {
+        fullUrl = baseUrl + endpoint;
+      }
     }
   } else {
     // 开发环境使用代理URL构建
@@ -788,7 +989,7 @@ async function generateImageOpenAI(prompt: string, config: ApiConfig, apiKey: st
     size: "384x384", // 使用用户指定的较小分辨率以提高生成速度
     response_format: "b64_json"
   };
-  const response = await fetch(fullUrl, {
+  const response = await fetchRetry(fullUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

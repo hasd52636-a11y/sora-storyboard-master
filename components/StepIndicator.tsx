@@ -33,10 +33,10 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, lang, onStep
                   ${isActive 
                     ? 'bg-purple-600 text-white shadow-lg scale-105' 
                     : isCompleted 
-                      ? 'bg-purple-100 text-purple-600 border border-purple-200' 
-                      : 'bg-gray-100 text-gray-400 border border-gray-200'}
+                      ? 'bg-purple-100 text-purple-600 border border-purple-200 hover:bg-purple-200' 
+                      : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'}
                 `}
-                onClick={() => onStepClick && (isCompleted || isActive) && onStepClick(step.id)}
+                onClick={() => (isActive || isCompleted) && onStepClick && onStepClick(step.id)}
               >
                 <span className="mr-2">{idx + 1}</span>
                 {step.label}

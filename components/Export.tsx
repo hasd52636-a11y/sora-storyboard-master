@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image';
 import { ProjectConfig, StoryboardFrame, SymbolCategory, Language, WorkflowStep } from '../types';
 import SymbolIcon from './SymbolIcon';
 import StepIndicator from './StepIndicator';
@@ -20,6 +20,8 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
   
   // Independent state for Technical Prompt Language
   const [promptLang, setPromptLang] = useState<Language>(lang);
+  // State to control symbol visibility in preview
+  const [showSymbols, setShowSymbols] = useState<boolean>(false);
 
   // Helper: Translate % coordinates to Semantic Position (Top-Left, Center, etc.) for AI
   const getPosLabel = (x: number, y: number, targetLang: 'en' | 'zh') => {
@@ -56,136 +58,376 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
   const generatePrompt = (subsetFrames: StoryboardFrame[], targetLang: Language) => {
     const isZh = targetLang === 'zh';
     
-    // Header: 定义Sora/Runway能理解的全局风格
-    let prompt = `=== AI VIDEO GENERATION PROMPT ===\n`;
-    prompt += `[GLOBAL CONTEXT]\n`;
-    prompt += `Style: ${config.style.name} Cinematic Video\n`;
-    prompt += `Resolution: 16:9 (${config.aspectRatio})\n`;
-    prompt += `Total Duration: ${config.duration}s\n\n`;
-
-    prompt += `[SHOT SEQUENCE]\n`;
+    // Header: 明确告诉Sora 2按照以下指令生成视频
+    let prompt = isZh ? `=视频生成指令=\n` : `=VIDEO GENERATION INSTRUCTIONS=\n`;
+    prompt += isZh ? `[重要说明]\n` : `[IMPORTANT NOTE]\n`;
+    prompt += isZh ? `严格按指令生成视频，分镜编号与脚本编号一一对应。\n结合分镜图(场景构图)和文字(剧情要求)生成。\n` : `Strictly follow instructions, frame numbers correspond exactly to script numbers.\nCombine storyboard (scene composition) and text (plot requirements).\n`;
     
-    // Symbol to text mapping based on icon field
-    const symbolIconToTextMap: Record<string, string> = {
-      'zoom-in': "Camera zooms in,",
-      'zoom-out': "Camera zooms out,",
-      'pan-left': "Camera pans left,",
-      'pan-right': "Camera pans right,",
-      'tilt-up': "Camera tilts up,",
-      'tilt-down': "Camera tilts down,",
-      'tracking': "Tracking shot,",
-      'hitchcock': "Dolly zoom effect,",
-      'speech-bubble': "Character is speaking,"
+    // Global Context
+    prompt += isZh ? `\n[全局上下文]\n` : `\n[GLOBAL CONTEXT]\n`;
+    prompt += isZh ? `风格: ${config.style.name}\n` : `Style: ${config.style.name}\n`;
+    prompt += isZh ? `分辨率: 16:9\n` : `Resolution: 16:9\n`;
+    prompt += isZh ? `总时长: ${config.duration}秒\n` : `Total Duration: ${config.duration}s\n`;
+    // 添加参考图片信息到全局上下文
+    if (config.referenceImage) {
+      prompt += isZh ? `参考主体: 使用提供的参考图片保持主体外观一致。\n` : `Reference Subject: Use provided reference image for consistent appearance.\n`;
+    }
+    
+    // Prohibitions and Restrictions
+    prompt += isZh ? `\n[禁止与限制]\n` : `\n[PROHIBITIONS]\n`;
+    prompt += isZh ? `1. 不改变参考主体核心特征\n` : `1. Do not change reference subject core features\n`;
+    prompt += isZh ? `2. 不添加无关元素/角色\n` : `2. Do not add irrelevant elements/characters\n`;
+    prompt += isZh ? `3. 严格执行指定的镜头运动\n` : `3. Strictly follow specified camera movements\n`;
+    prompt += isZh ? `4. 不违反指定视觉风格\n` : `4. Do not violate specified visual style\n`;
+    prompt += isZh ? `5. 按分镜编号顺序生成\n` : `5. Follow shot number sequence\n`;
+    prompt += isZh ? `6. 保持镜头间视觉连续性\n` : `6. Maintain visual continuity between shots\n`;
+    
+    // 分镜图信息统一指令 - 避免在每个分镜中重复
+    prompt += isZh ? `\n[分镜图使用规则]\n` : `\n[STORYBOARD USAGE RULES]\n`;
+    prompt += isZh ? `严格按照分镜图的构图、元素位置和符号含义执行。\n` : `Strictly follow composition, element positions, and symbol meanings in the storyboard.\n`;
+    
+    // Shot Sequence
+    prompt += isZh ? `\n[镜头序列]\n` : `\n[SHOT SEQUENCE]\n`;
+    prompt += isZh ? `分镜编号对应关系：\n` : `Shot number correspondence:\n`;
+    
+    // 辅助函数：检测箭头方向
+    const detectArrowDirection = (rotation: number): string => {
+      // 标准化旋转角度到0-360范围
+      const normalizedRotation = ((rotation % 360) + 360) % 360;
+      
+      // 定义8个方向的角度范围
+      const directions = [
+        { name: isZh ? "上" : "Up", angle: 0, range: 22.5 },
+        { name: isZh ? "右上" : "Up-Right", angle: 45, range: 22.5 },
+        { name: isZh ? "右" : "Right", angle: 90, range: 22.5 },
+        { name: isZh ? "右下" : "Down-Right", angle: 135, range: 22.5 },
+        { name: isZh ? "下" : "Down", angle: 180, range: 22.5 },
+        { name: isZh ? "左下" : "Down-Left", angle: 225, range: 22.5 },
+        { name: isZh ? "左" : "Left", angle: 270, range: 22.5 },
+        { name: isZh ? "左上" : "Up-Left", angle: 315, range: 22.5 }
+      ];
+      
+      // 找到最接近的方向
+      for (const dir of directions) {
+        const diff = Math.abs(normalizedRotation - dir.angle);
+        if (diff <= dir.range || diff >= 360 - dir.range) {
+          return dir.name;
+        }
+      }
+      
+      return "Unknown";
+    };
+    
+    // 辅助函数：根据位置获取语义化描述
+    const getPositionDescription = (x: number, y: number): string => {
+      let vertical = isZh ? "中" : "Center";
+      let horizontal = isZh ? "中" : "Center";
+      
+      // 垂直方向
+      if (y < 30) vertical = isZh ? "上" : "Top";
+      else if (y > 70) vertical = isZh ? "下" : "Bottom";
+      
+      // 水平方向
+      if (x < 30) horizontal = isZh ? "左" : "Left";
+      else if (x > 70) horizontal = isZh ? "右" : "Right";
+      
+      if (vertical === (isZh ? "中" : "Center") && horizontal === (isZh ? "中" : "Center")) {
+        return isZh ? "中心" : "Center";
+      }
+      
+      return isZh ? `${vertical}${horizontal}` : `${vertical}-${horizontal}`;
+    };
+    
+    // 辅助函数：根据符号大小获取速度等级
+    const getSpeedLevel = (width: number, height: number): string => {
+      // 计算符号面积占分镜的比例（假设分镜是正方形，面积为100x100=10000）
+      const symbolArea = width * height;
+      const areaPercentage = (symbolArea / 10000) * 100;
+      
+      if (isZh) {
+        if (areaPercentage < 10) return "极慢";
+        if (areaPercentage < 25) return "缓慢";
+        if (areaPercentage < 50) return "中等";
+        if (areaPercentage < 75) return "快速";
+        return "极快（带运动模糊）";
+      } else {
+        if (areaPercentage < 10) return "Extremely Slow";
+        if (areaPercentage < 25) return "Slow";
+        if (areaPercentage < 50) return "Moderate";
+        if (areaPercentage < 75) return "Fast";
+        return "Extremely Fast (with motion blur)";
+      }
+    };
+    
+    // 辅助函数：根据表情符号获取情绪描述
+    const getEmotionDescription = (icon: string, width: number, height: number): string => {
+      const symbolArea = width * height;
+      const areaPercentage = (symbolArea / 10000) * 100;
+      
+      let intensity = isZh ? "" : "";
+      if (areaPercentage < 20) intensity = isZh ? "稍微 " : "slightly ";
+      else if (areaPercentage > 50) intensity = isZh ? "强烈 " : "intensely ";
+      
+      const emotionMap: Record<string, string> = isZh ? {
+        'happy': `${intensity}开心`,
+        'angry': `${intensity}生气`,
+        'sad': `${intensity}悲伤`,
+        'laughing': `${intensity}愉悦`,
+        'surprised': `${intensity}惊讶`,
+        'confused': `${intensity}困惑`,
+        'fearful': `${intensity}恐惧`
+      } : {
+        'happy': `${intensity}happy`,
+        'angry': `${intensity}angry`,
+        'sad': `${intensity}sad`,
+        'laughing': `${intensity}joyful`,
+        'surprised': `${intensity}surprised`,
+        'confused': `${intensity}confused`,
+        'fearful': `${intensity}fearful`
+      };
+      
+      return emotionMap[icon] || (isZh ? "中性" : "neutral");
     };
 
     subsetFrames.forEach((f, index) => {
-      // 构建结构化的单镜头指令
-      let shotHeader = `SHOT ${index + 1} (Time: ${f.duration || 'Auto'})`;
+      // 构建结构化的单镜头指令，明确分镜编号与脚本编号的对应关系
+      const shotNumber = index + 1;
+      const scNumber = `SC-${(f.number?.toString() || '00').padStart(2, '0')}`;
+      let shotHeader = isZh ? 
+        `== ${scNumber} / 脚本${shotNumber} ==\n` + 
+        `[镜头${shotNumber}: 时长${f.duration || '自动'}]` : 
+        `== ${scNumber} / SCRIPT ${shotNumber} ==\n` + 
+        `[SHOT ${shotNumber}: Duration ${f.duration || 'Auto'}]`;
+      
       let contentDesc = isZh ? (f.descriptionZh || f.description) : f.description;
       
-      // 转译符号为自然语言动作指令
-      let symbolDirectives = f.symbols
-        .map(s => symbolIconToTextMap[s.icon] || '')
-        .filter(Boolean)
-        .join(' ')
-        .trim();
+      // 初始化结构化指令组件
+      let actionDirective = "";
+      let speedDirective = "";
+      let directionDirective = "";
+      let emotionDirective = "";
+      let cameraDirective = "";
+      let dialogueDirective = "";
+      let referenceDirective = "";
+      
+      // 分析每个符号并构建相应的指令
+      f.symbols.forEach(symbol => {
+        const icon = symbol.icon;
+        const rotation = symbol.rotation;
+        const x = symbol.x;
+        const y = symbol.y;
+        const width = symbol.width;
+        const height = symbol.height;
+        
+        // 根据符号类别和图标处理
+        switch (symbol.category) {
+          case SymbolCategory.CAMERA:
+            // 相机符号处理 - 明确告知Sora 2如何响应分镜图中的摄像机符号
+            const cameraMap: Record<string, string> = {
+              'zoom-in': isZh ? "放大" : "Zoom In",
+              'zoom-out': isZh ? "缩小" : "Zoom Out",
+              'pan-left': isZh ? "向左平移" : "Pan Left",
+              'pan-right': isZh ? "向右平移" : "Pan Right",
+              'tilt-up': isZh ? "向上倾斜" : "Tilt Up",
+              'tilt-down': isZh ? "向下倾斜" : "Tilt Down",
+              'tracking': isZh ? "跟拍" : "Tracking shot",
+              'hitchcock': isZh ? "希区柯克变焦效果" : "Dolly zoom effect"
+            };
+            if (cameraMap[icon]) {
+              cameraDirective = isZh ? 
+                `[摄像机操作 - 严格按照分镜图执行]: ${cameraMap[icon]}` : 
+                `[CAMERA OPERATION - Follow storyboard strictly]: ${cameraMap[icon]}`;
+              // 添加符号描述
+              if (symbol.description) {
+                cameraDirective += ` (${symbol.description})`;
+              }
+            }
+            break;
+            
+          case SymbolCategory.ACTION:
+            // 动作符号处理 - 明确告知Sora 2如何响应分镜图中的动作符号
+            const arrowPosition = getPositionDescription(x, y);
+            
+            if (icon.endsWith("-arrow")) {
+              // 箭头符号处理
+              const direction = detectArrowDirection(rotation);
+              directionDirective = isZh ? 
+                `[动作方向 - 严格按照分镜图箭头执行]: ${direction}` : 
+                `[ACTION DIRECTION - Follow storyboard arrow strictly]: ${direction}`;
+              
+              // 根据箭头类型生成动作指令
+              let actionType = isZh ? "移动" : "moves";
+              if (icon === "jump-arrow") {
+                actionType = isZh ? "以抛物线轨迹跳跃" : "jumps in a parabolic trajectory";
+              } else if (icon === "rotate-arrow") {
+                actionType = isZh ? "做圆周运动旋转" : "rotates in a circular motion";
+              } else if (icon === "continuous-jump-arrow") {
+                actionType = isZh ? "以波浪模式持续弹跳" : "bounces continuously in a wave pattern";
+              }
+              
+              // 生成主体（这里简单使用"角色"，实际应用中可以根据分镜描述提取）
+              const subject = isZh ? "角色" : "The character";
+              actionDirective = isZh ? 
+                `[动作指令 - 严格按照分镜图位置执行]: ${subject} 从 ${arrowPosition} 向 ${direction} ${actionType}` : 
+                `[ACTION INSTRUCTION - Follow storyboard position strictly]: ${subject} ${actionType} from ${arrowPosition} towards ${direction} direction`;
+              
+              // 添加速度信息
+              const speed = getSpeedLevel(width, height);
+              speedDirective = isZh ? 
+                `[动作速度 - 严格按照分镜图符号大小执行]: ${speed}` : 
+                `[ACTION SPEED - Follow storyboard symbol size strictly]: ${speed}`;
+            } else {
+              // 其他动作符号
+              const actionMap: Record<string, string> = {
+                'move-fwd': isZh ? "向前移动" : "moves forward",
+                'jump': isZh ? "跳跃" : "jumps",
+                'turn': isZh ? "转身" : "turns",
+                'fight': isZh ? "战斗" : "fights",
+                'fall': isZh ? "跌倒" : "falls"
+              };
+              if (actionMap[icon]) {
+                const subject = isZh ? "角色" : "The character";
+                actionDirective = isZh ? 
+                  `[动作指令 - 严格按照分镜图位置执行]: ${subject} ${actionMap[icon]}` : 
+                  `[ACTION INSTRUCTION - Follow storyboard position strictly]: ${subject} ${actionMap[icon]}`;
+                
+                // 添加速度信息
+                const speed = getSpeedLevel(width, height);
+                speedDirective = isZh ? 
+                  `[动作速度 - 严格按照分镜图符号大小执行]: ${speed}` : 
+                  `[ACTION SPEED - Follow storyboard symbol size strictly]: ${speed}`;
+              }
+            }
+            // 添加符号描述
+            if (actionDirective && symbol.description) {
+              actionDirective += ` (${symbol.description})`;
+            }
+            break;
+            
+          case SymbolCategory.DIALOGUE:
+            // 对话符号处理 - 明确告知Sora 2如何处理分镜图中的对话
+            if (icon === "speech-bubble" && symbol.text) {
+              dialogueDirective = isZh ? 
+                `[对话内容 - 严格按照分镜图文字执行]: "${symbol.text}"` : 
+                `[DIALOGUE CONTENT - Follow storyboard text strictly]: "${symbol.text}"`;
+              // 添加符号描述
+              if (symbol.description) {
+                dialogueDirective += ` (${symbol.description})`;
+              }
+            }
+            break;
+            
+          case SymbolCategory.REFERENCE:
+              // 参考符号处理 - 明确告知Sora 2如何使用参考图片
+              if (config.referenceImage) {
+                referenceDirective = isZh ? 
+                  `[参考图片使用 - 严格保持外观一致性]: 使用提供的参考图片在 ${getPositionDescription(x, y)} 处生成主体，
+                     确保在整个视频中保持一致的外观和特征` : 
+                  `[REFERENCE IMAGE USAGE - Maintain consistent appearance strictly]: Use the provided reference image 
+                     to generate the subject at ${getPositionDescription(x, y)}, ensuring consistent appearance 
+                     and features throughout the video`;
+              } else {
+                referenceDirective = isZh ? 
+                  `[参考元素 - 按照分镜图位置放置]: ${getPositionDescription(x, y)} 处的参考元素` : 
+                  `[REFERENCE ELEMENT - Place according to storyboard position]: Reference element at ${getPositionDescription(x, y)}`;
+              }
+              // 添加符号描述
+              if (symbol.description) {
+                referenceDirective += ` (${symbol.description})`;
+              }
+              break;
+              
+            case SymbolCategory.EMOTION:
+              // 表情符号处理 - 明确告知Sora 2如何表现情绪
+              const emotion = getEmotionDescription(icon, width, height);
+              emotionDirective = isZh ? 
+                `[情绪表现 - 按照分镜图强度执行]: ${emotion}` : 
+                `[EMOTION EXPRESSION - Follow storyboard intensity strictly]: ${emotion}`;
+              // 添加符号描述
+              if (symbol.description) {
+                emotionDirective += ` (${symbol.description})`;
+              }
+              break;
+        }
+      });
 
-      // 移除最后一个逗号（如果存在）
-      if (symbolDirectives.endsWith(',')) {
-        symbolDirectives = symbolDirectives.slice(0, -1);
-      }
-
-      // 构建完整的PROMPT描述
-      let fullDesc = contentDesc;
-      if (symbolDirectives) {
-        fullDesc += `. ${symbolDirectives}`;
-      }
-
+      // 构建完整的镜头提示词，清晰区分图片信息和文字信息
       prompt += `${shotHeader}\n`;
-      prompt += `PROMPT: ${fullDesc}. Style: ${config.style.name}.\n`;
-      prompt += `----------------------------------\n`;
+      
+      // 移除每个分镜中重复的分镜图信息说明，已在全局指令中统一说明
+      
+      // 视频提示词信息
+      prompt += isZh ? 
+        `[视频提示词]: ${contentDesc}\n` : 
+        `[VIDEO PROMPT]: ${contentDesc}\n`;
+      
+      // 添加结构化指令，明确告知Sora 2如何执行 - 只有存在指令时才输出标题
+      const hasDirectives = actionDirective || speedDirective || directionDirective || cameraDirective || 
+                            dialogueDirective || emotionDirective || referenceDirective;
+      if (hasDirectives) {
+        const directives = [];
+        if (actionDirective) directives.push(actionDirective);
+        if (speedDirective) directives.push(speedDirective);
+        if (directionDirective) directives.push(directionDirective);
+        if (cameraDirective) directives.push(cameraDirective);
+        if (dialogueDirective) directives.push(dialogueDirective);
+        if (emotionDirective) directives.push(emotionDirective);
+        if (referenceDirective) directives.push(referenceDirective);
+        
+        prompt += isZh ? `[执行指令]: ${directives.join('; ')}\n` : `[EXECUTION]: ${directives.join('; ')}\n`;
+      }
+      
+      // 如果没有具体指令，添加默认执行要求
+      if (!actionDirective && !speedDirective && !directionDirective && !cameraDirective && 
+          !dialogueDirective && !emotionDirective && !referenceDirective) {
+        prompt += isZh ? 
+          `[默认执行]: 按分镜图和文字描述生成\n` : 
+          `[DEFAULT]: Follow storyboard and text description\n`;
+      }
+      
+      prompt += (isZh ? `\n---\n` : `\n---\n`);
     });
 
     return prompt;
   };
 
   const handleDownload = async (index: number) => {
-    const element = sheetRefs.current[index];
-    if (element) {
-      try {
-        // 确保元素在视口中可见
-        const originalVisibility = element.style.visibility;
-        const originalPosition = element.style.position;
-        const originalLeft = element.style.left;
-        
-        element.style.visibility = 'visible';
-        element.style.position = 'relative';
-        element.style.left = '0';
-        
-        // 强制重绘
-        element.offsetHeight;
-        
-        // 等待所有图片加载完成
-        const images = element.querySelectorAll('img');
-        await Promise.all(Array.from(images).map(img => {
-          if (img.complete) return Promise.resolve();
-          return new Promise((resolve) => {
-            img.onload = resolve;
-            img.onerror = resolve;
-          });
-        }));
-        
-        // 增加额外的等待时间，确保所有内容都已渲染完成
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // 优化html2canvas配置
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: true,
-          allowTaint: true,
-          foreignObjectRendering: true,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: element.scrollWidth,
-          windowHeight: element.scrollHeight,
-          ignoreElements: (element) => {
-            return element.tagName.toLowerCase() === 'script' || 
-                   element.tagName.toLowerCase() === 'style';
-          },
-          // 改进的配置选项
-          imageTimeout: 10000,
-          removeContainer: false,
-        });
-        
-        // 恢复原始样式
-        element.style.visibility = originalVisibility;
-        element.style.position = originalPosition;
-        element.style.left = originalLeft;
-        
-        // 将canvas转换为Blob并下载
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const link = document.createElement('a');
-            link.download = `storyboard-sheet-${index + 1}.png`;
-            link.href = URL.createObjectURL(blob);
-            link.click();
-            // 释放URL对象
-            URL.revokeObjectURL(link.href);
-          } else {
-            throw new Error('Failed to create blob from canvas');
-          }
-        }, 'image/png', 1.0);
-      } catch (err) {
-        console.error("Export failed", err);
-        alert("Failed to export image");
-      }
-    } else {
-        console.error("Element not found for download");
-        alert("Element not found for download");
-      }
-    };
+    // 获取页面元素 - 现在直接引用主分镜图区域
+    const mainContentElement = sheetRefs.current[index];
+    if (!mainContentElement) return;
+    
+    try {
+      // 获取当前的符号显示状态
+      const currentShowSymbols = showSymbols;
+      
+      // 临时移除最小高度限制，让容器自适应内容
+      const originalClassName = mainContentElement.className;
+      mainContentElement.className = originalClassName.replace('min-h-[600px]', 'h-auto');
+      
+      // 等待React状态更新
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 使用dom-to-image库，只下载主分镜图区域
+      const dataUrl = await domtoimage.toJpeg(mainContentElement as HTMLElement, {
+        quality: 0.95,
+        bgcolor: '#ffffff',
+        width: (mainContentElement as HTMLElement).offsetWidth,
+        height: (mainContentElement as HTMLElement).offsetHeight
+      });
+      
+      // 恢复原始类名
+      mainContentElement.className = originalClassName;
+      
+      // 创建下载链接
+      const link = document.createElement('a');
+      link.download = `storyboard-sheet-${index + 1}.jpg`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error("Export failed", err);
+      alert("Failed to export image");
+    }
+  };
 
   const itemsPerPage = 9; // 每页最多显示9张分镜图
   const totalPages = Math.ceil(frames.length / itemsPerPage);
@@ -204,7 +446,7 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
   return (
     <div className="flex flex-col h-full w-full max-w-[1900px] mx-auto px-6 pb-8">
       <div className="flex items-center justify-between relative py-4">
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><StepIndicator currentStep={WorkflowStep.EXPORT} lang={lang} onStepClick={setCurrentStep} /></div>
+          <div className="absolute inset-0 flex items-center justify-center"><StepIndicator currentStep={WorkflowStep.EXPORT} lang={lang} onStepClick={setCurrentStep} /></div>
       </div>
       
       {/* 集中的按钮区域 */}
@@ -262,6 +504,15 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                              <span className="w-8 h-8 flex items-center justify-center bg-gray-900 text-white rounded-full font-bold text-sm">{pageIndex + 1}</span>
                              <h3 className="font-bold text-gray-700">{tr('sheet')} {pageIndex + 1}</h3>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">{tr('previewSymbols')}:</span>
+                            <button 
+                                onClick={() => setShowSymbols(!showSymbols)} 
+                                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${showSymbols ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            >
+                                {showSymbols ? tr('on') : tr('off')}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -294,18 +545,20 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                              <div ref={(el) => { sheetRefs.current[pageIndex] = el; }} className="p-8 bg-white text-gray-900 min-h-[600px] relative">
                                 
                                 {/* AI Guide Legend - Compact */}
-                                <div className="mb-4 p-2 border border-gray-300 bg-gray-50 rounded flex gap-6 text-[10px] font-bold text-gray-600 uppercase tracking-wider justify-between">
-                                    <div className="flex gap-4">
-                                        <div className="flex items-center gap-1">
-                                            <div className="w-3 h-3 border border-dashed border-red-500 bg-red-50/50"></div>
-                                            <span>RED=REF</span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <div className="w-3 h-3 border border-blue-600 bg-white"></div>
-                                            <span>BLUE=SHOT</span>
-                                        </div>
+                                <div className="mb-2 p-1 border border-gray-300 bg-gray-50 rounded flex gap-2 text-[10px] font-bold text-gray-600 uppercase tracking-wider items-center">
+                                    {/* RED=REF Symbol - Horizontal Layout */}
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-5 h-5 border-2 border-dashed border-red-500 bg-red-50/50 rounded"></div>
+                                        <span>RED=REF</span>
+                                        <span className="text-xs font-normal text-gray-500">[AI: Visual ref]</span>
                                     </div>
-                                    <div className="text-gray-400">ICONS = MOTION GUIDE</div>
+                                    
+                                    {/* BLUE=SHOT Symbol - Horizontal Layout */}
+                                    <div className="flex items-center gap-1">
+                                        <div className="w-5 h-5 border-2 border-blue-600 bg-white rounded"></div>
+                                        <span>BLUE=SHOT</span>
+                                        <span className="text-xs font-normal text-gray-500">[AI: Video shot]</span>
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-4 items-stretch">
@@ -323,7 +576,7 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                                     <div className="flex-1">
                                         {/* 根据分镜数量动态调整网格布局 */}
                                         <div className={`grid gap-3 ${getGridColumns(pageFrames.length)}`} style={{ alignItems: 'stretch' }}>
-                                            {pageFrames.map((frame) => {
+                                            {pageFrames.map((frame, frameIndex) => {
                                                 const allSymbols = frame.symbols; 
                                                 const overlaySymbols = frame.symbols.filter(s => s.category !== SymbolCategory.CAMERA);
 
@@ -349,7 +602,7 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                                                                 )}
 
                                                                 {/* OVERLAY SYMBOLS */}
-                                                                {overlaySymbols.map(sym => (
+                                                                {showSymbols && overlaySymbols.map(sym => (
                                                                     <div
                                                                         key={sym.id}
                                                                         className="absolute z-20 pointer-events-none"

@@ -115,11 +115,35 @@ const PromptCard = ({
 
 const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, onBack, regenerateImage, lang, settings, isGlobalLoading, updateConfig, setCurrentStep }) => {
     const [activeFrameIndex, setActiveFrameIndex] = useState(0);
+    const [showSymbolHelp, setShowSymbolHelp] = useState(false);
+    const [isGeneratingNext, setIsGeneratingNext] = useState(false);
     const activeFrame = frames[activeFrameIndex];
     const tr = (key: any) => t(lang, key);
     
     // 检查是否有任何分镜正在生成
     const isAnyFrameGenerating = frames.some(frame => frame.isGenerating);
+    
+    // 检查是否有未生成图片的分镜
+    const hasUngeneratedFrames = frames.some(frame => !frame.imageUrl && !frame.isGenerating);
+    
+    // 生成下一个分镜图片
+    const generateNextFrame = async () => {
+        setIsGeneratingNext(true);
+        try {
+            // 找到下一个没有图片且未在生成中的分镜
+            const nextFrameIndex = frames.findIndex(frame => !frame.imageUrl && !frame.isGenerating);
+            if (nextFrameIndex !== -1) {
+                // 生成该分镜的图片
+                await regenerateImage(frames[nextFrameIndex].id);
+                // 切换到刚生成的分镜
+                setActiveFrameIndex(nextFrameIndex);
+            }
+        } catch (error) {
+            console.error('生成下一个分镜失败:', error);
+        } finally {
+            setIsGeneratingNext(false);
+        }
+    };
     
     const canvasRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -152,6 +176,9 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
   // Custom Confirmation Modal State// --- 确认修改弹窗状态 --- 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmModalFrameId, setConfirmModalFrameId] = useState<string | null>(null);
+  // 自定义提示框状态
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertModalMessage, setAlertModalMessage] = useState('');
   // 控制是否在文本修改时显示动画
   const [isTextEditing, setIsTextEditing] = useState(false);
   const [isShowEffect, setIsShowEffect] = useState(false);
@@ -306,6 +333,9 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
     const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
     const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
 
+    // 获取符号的详细描述
+    const description = t(lang, `${name}_help`) || '';
+
     addSymbolToFrame(activeFrame.id, {
       id: `sym-${Date.now()}`,
       category,
@@ -315,7 +345,8 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
       y,
       width: defaultW,
       height: defaultH,
-      rotation: 0
+      rotation: 0,
+      description
     });
   };
 
@@ -323,9 +354,29 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
     const frame = frames.find(f => f.id === frameId);
     if (!frame) return;
 
-    if (frame.symbols.length >= 4) return alert(tr('maxSymbols'));
-    const sameCategory = frame.symbols.filter(s => s.category === symbol.category);
-    if (symbol.category !== SymbolCategory.DIALOGUE && symbol.category !== SymbolCategory.CUSTOM && sameCategory.length > 0) return alert(tr('maxCategory'));
+    if (frame.symbols.length >= 4) {
+      setAlertModalMessage(tr('maxSymbols'));
+      setShowAlertModal(true);
+      return;
+    }
+    
+    // 添加对话符号特殊限制
+    if (symbol.category === SymbolCategory.DIALOGUE) {
+      const dialogueSymbols = frame.symbols.filter(s => s.category === SymbolCategory.DIALOGUE);
+      if (dialogueSymbols.length >= 2) {
+        setAlertModalMessage(tr('maxDialogue'));
+        setShowAlertModal(true);
+        return;
+      }
+    } else if (symbol.category !== SymbolCategory.CUSTOM) {
+      // 其他分类限制
+      const sameCategory = frame.symbols.filter(s => s.category === symbol.category);
+      if (sameCategory.length > 0) {
+        setAlertModalMessage(tr('maxCategory'));
+        setShowAlertModal(true);
+        return;
+      }
+    }
 
     const newFrames = frames.map(f => f.id === frameId ? { ...f, symbols: [...f.symbols, symbol] } : f);
     updateFrames(newFrames);
@@ -538,7 +589,17 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
 
              {/* 2. Symbol Library (Scrollable) */}
              <div className="glass-panel rounded-2xl p-4 flex flex-col overflow-hidden flex-1">
-                <h3 className="font-bold text-gray-700 mb-4 text-sm uppercase tracking-wider flex-shrink-0">{tr('symbolLib')}</h3>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wider flex-shrink-0">{tr('symbolLib')}</h3>
+                    {/* Help Button */}
+                    <button
+                        onClick={() => setShowSymbolHelp(true)}
+                        className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                        title="符号帮助文档"
+                    >
+                        <span className="text-xs font-bold">?</span>
+                    </button>
+                </div>
                 <div className="overflow-y-auto flex-1 space-y-6 pr-1 custom-scrollbar min-h-0">
                     {Object.entries(SYMBOLS_LIBRARY).map(([category, items]) => (
                         <div key={category}>
@@ -560,7 +621,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, category as SymbolCategory, item.name, item.icon)}
                                     className="aspect-square bg-white rounded-lg hover:bg-gray-50 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-1 transition-transform hover:scale-105 border border-gray-100 shadow-sm"
-                                    title={tr(item.name)}
+                                    title={tr(`${item.name}_help`)}
                                 >
                                     <div className="w-8 h-8 mb-1">
                                         <SymbolIcon category={category as SymbolCategory} icon={item.icon} />
@@ -608,7 +669,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
 
                     {/* Frame Info Tag */}
                     <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-0.5 text-xs font-bold shadow-md z-10 rounded-sm">
-                        SC-{activeFrame.number.toString().padStart(2, '0')}
+                        SC-{(activeFrame.number?.toString() || '00').padStart(2, '0')}
                     </div>
 
                     {/* Symbols Layer */}
@@ -732,13 +793,46 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                         </div>
                     </div>
                 )}
+                
+                {/* Custom Alert Modal */}
+                {showAlertModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <div className="glass-panel rounded-2xl p-6 shadow-lg max-w-md w-full border-2 border-purple-300">
+                            <p className="text-gray-600 text-sm mb-5 text-center">{alertModalMessage}</p>
+                            <div className="flex justify-center">
+                                <button 
+                                    onClick={() => setShowAlertModal(false)}
+                                    className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded shadow-sm"
+                                >
+                                    {tr('ok')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
 
         {/* RIGHT: List */}
         <div className="w-56 flex-shrink-0 glass-panel rounded-2xl p-4 flex flex-col">
             <h3 className="font-bold text-gray-700 mb-4 text-sm uppercase">{tr('framesList')}</h3>
-            <div className="overflow-y-auto flex-1 space-y-3 pr-1 custom-scrollbar" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="mb-4 pb-4 border-b border-gray-100 flex-shrink-0">
+                <button onClick={onNext} className="w-full py-3 border-2 border-purple-600 hover:bg-purple-700 hover:text-white bg-transparent text-purple-600 rounded-xl font-bold text-sm shadow-lg mb-2 transition-all duration-200">{tr('exportProject')}</button>
+                <button onClick={onBack} className="w-full py-3 border-2 border-purple-600 hover:bg-purple-700 hover:text-white bg-transparent text-purple-600 rounded-xl font-bold text-sm shadow-lg mb-2 transition-all duration-200">{tr('back')}</button>
+                <button 
+                    onClick={generateNextFrame} 
+                    disabled={isGeneratingNext || !hasUngeneratedFrames} 
+                    className={`w-full py-3 border-2 ${isGeneratingNext || !hasUngeneratedFrames ? 'border-gray-300 text-gray-300 cursor-not-allowed' : 'border-green-600 hover:bg-green-700 hover:text-white text-green-600'} bg-transparent rounded-xl font-bold text-sm shadow-lg transition-all duration-200`}
+                >
+                    {isGeneratingNext ? (
+                        <div className="flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            {tr('generatingNext')}
+                        </div>
+                    ) : hasUngeneratedFrames ? tr('generateNextFrame') : tr('allFramesGenerated')}
+                </button>
+            </div>
+            <div className="overflow-y-auto flex-1 space-y-3 pr-1 custom-scrollbar" style={{ maxHeight: 'calc(100vh - 300px)' }}>
                 {frames.map((frame, idx) => (
                     <div 
                         key={frame.id}
@@ -755,7 +849,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                 />
                              )}
                              <div className="absolute top-1 left-1 bg-blue-600 text-white text-[10px] px-1 rounded shadow-sm font-bold z-10 flex items-center justify-center">
-                                SC-{frame.number.toString().padStart(2, '0')}
+                                SC-{(frame.number?.toString() || '00').padStart(2, '0')}
                              </div>
 
                              {/* FRAME CONTROLS OVERLAY - Redraw & Upload */}
@@ -780,10 +874,6 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                         </div>
                     </div>
                 ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-100">
-                <button onClick={onNext} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm shadow-lg mb-2">{tr('exportProject')}</button>
-                <button onClick={onBack} className="w-full py-2 text-gray-500 hover:text-gray-800 text-xs">{tr('backSetup')}</button>
             </div>
         </div>
       </div>
@@ -846,6 +936,143 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                   </div>
               </div>
           </div>
+      )}
+
+      {/* Symbol Help Modal */}
+      {showSymbolHelp && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="glass-panel rounded-2xl p-6 max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg text-gray-800">{tr('symbolLib')} - {tr('help')}</h2>
+              <button
+                onClick={() => setShowSymbolHelp(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <span className="text-xl">×</span>
+              </button>
+            </div>
+
+            {/* Symbol Definitions */}
+            <div className="space-y-6">
+              {/* Camera Symbols */}
+              <div>
+                <h3 className="font-bold text-blue-600 mb-2">{tr('camera')} {tr('symbols')}</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold mt-1">📷</span>
+                    <div>
+                      <strong>{tr('shotType')}</strong>
+                      <p className="text-gray-600">{tr('shotType_help')}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold mt-1">🎞️</span>
+                    <div>
+                      <strong>{tr('cameraMovement')}</strong>
+                      <p className="text-gray-600">{tr('cameraMovement_help')}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Symbols */}
+              <div>
+                <h3 className="font-bold text-orange-600 mb-2">{tr('action')} {tr('symbols')}</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-orange-500 font-bold mt-1">⚡</span>
+                    <div>
+                      <strong>{tr('speed')}</strong>
+                      <p className="text-gray-600">{tr('speed_help')}</p>
+                      <ul className="list-disc list-inside text-xs mt-1 space-y-1 text-gray-500">
+                        <li>0-40px: {tr('slow')}</li>
+                        <li>41-80px: {tr('medium')}</li>
+                        <li>81px+: {tr('fast')}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Emotion Symbols */}
+              <div>
+                <h3 className="font-bold text-purple-600 mb-2">{tr('emotion')} {tr('symbols')}</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold mt-1">😊</span>
+                    <div>
+                      <strong>{tr('emotion')}</strong>
+                      <p className="text-gray-600">{tr('emotion_help')}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reference Symbols */}
+              <div>
+                <h3 className="font-bold text-red-600 mb-2">{tr('reference')} {tr('symbols')}</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-red-500 font-bold mt-1">📍</span>
+                    <div>
+                      <strong>{tr('referenceBox')}</strong>
+                      <p className="text-gray-600">{tr('referenceBox_help')}</p>
+                      <p className="text-xs mt-1 text-gray-500">{tr('referenceBox_note')}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Arrow Symbols */}
+              <div>
+                <h3 className="font-bold text-green-600 mb-2">{tr('arrow')} {tr('symbols')}</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-green-500 font-bold mt-1">↗️</span>
+                    <div>
+                      <strong>{tr('direction')}</strong>
+                      <p className="text-gray-600">{tr('direction_help')}</p>
+                      <ul className="list-disc list-inside text-xs mt-1 space-y-1 text-gray-500">
+                        <li>↖️ {tr('upLeft')}</li>
+                        <li>↑ {tr('up')}</li>
+                        <li>↗️ {tr('upRight')}</li>
+                        <li>← {tr('left')}</li>
+                        <li>→ {tr('right')}</li>
+                        <li>↙️ {tr('downLeft')}</li>
+                        <li>↓ {tr('down')}</li>
+                        <li>↘️ {tr('downRight')}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Symbol Size Guide */}
+              <div>
+                <h3 className="font-bold text-gray-700 mb-2">{tr('symbolSizeGuide')}</h3>
+                <div className="space-y-2 text-sm">
+                  <p className="text-gray-600">{tr('symbolSizeHelp')}</p>
+                  <ul className="list-disc list-inside text-xs mt-1 space-y-1 text-gray-500">
+                    <li>0-40px: {tr('small')} - {tr('symbolSize_small')}</li>
+                    <li>41-80px: {tr('medium')} - {tr('symbolSize_medium')}</li>
+                    <li>81px+: {tr('large')} - {tr('symbolSize_large')}</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowSymbolHelp(false)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm hover:bg-purple-700 transition-colors"
+              >
+                {tr('close')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

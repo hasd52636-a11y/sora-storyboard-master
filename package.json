@@ -11,7 +11,9 @@
   "dependencies": {
     "@google/genai": "^1.32.0",
     "crypto-js": "^4.2.0",
+    "dom-to-image": "^2.6.0",
     "html2canvas": "^1.4.1",
+    "idb": "^8.0.3",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },

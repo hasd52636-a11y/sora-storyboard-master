@@ -1,10 +1,13 @@
 // 请求队列管理器
+// 动态获取默认并发数，优先使用硬件并发数，确保在服务器端环境也能正常工作
+const defaultMaxConcurrent = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
+
 class RequestQueue {
   private queue: Array<() => Promise<any>> = [];
   private activeRequests: number = 0;
-  private maxConcurrentRequests: number = 2; // 限制最大并发请求数
+  private maxConcurrentRequests: number = defaultMaxConcurrent; // 限制最大并发请求数
 
-  constructor(maxConcurrentRequests: number = 2) {
+  constructor(maxConcurrentRequests: number = defaultMaxConcurrent) {
     this.maxConcurrentRequests = maxConcurrentRequests;
   }
 
@@ -63,4 +66,4 @@ class RequestQueue {
 }
 
 // 创建全局请求队列实例
-export const requestQueue = new RequestQueue(2);
+export const requestQueue = new RequestQueue();
