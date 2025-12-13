@@ -117,37 +117,51 @@ const App: React.FC = () => {
       setCurrentStep(WorkflowStep.EDITOR);
       setIsLoading(false);
       
-      // 只生成第一张分镜的图片，其他分镜留待后续在Editor中逐个生成
+      // 生成所有分镜的图片，一张生成完成后自动生成下一张
       if (initialFrames.length > 0) {
-        const firstFrame = initialFrames[0];
         const framesWithImages = [...initialFrames];
-        framesWithImages[0] = {
-          ...firstFrame,
-          isGenerating: true
-        };
-        setFrames([...framesWithImages]);
         
-        try {
-          // 调用 quickDraft 生成第一张分镜的草图
-          const draftResult = await quickDraft(firstFrame.visualPrompt, appSettings.llm.apiKey);
+        // 定义递归生成函数
+        const generateNextDraftFrame = async (index: number) => {
+          if (index >= framesWithImages.length) return;
           
-          framesWithImages[0] = {
-            ...framesWithImages[0],
-            imageUrl: draftResult.data?.[0]?.url,
-            isGenerating: false,
-            generationError: !draftResult.data?.[0]?.url,
-            isDraft: true // 标记为草稿图
+          const currentFrame = framesWithImages[index];
+          framesWithImages[index] = {
+            ...currentFrame,
+            isGenerating: true
           };
-        } catch (e) {
-          console.error(`生成第1张分镜草图失败:`, e);
-          framesWithImages[0] = {
-            ...framesWithImages[0],
-            isGenerating: false,
-            generationError: true
-          };
-        }
+          setFrames([...framesWithImages]);
+          
+          try {
+            // 调用 quickDraft 生成当前分镜的草图
+            const draftResult = await quickDraft(currentFrame.visualPrompt, appSettings.llm.apiKey);
+            
+            framesWithImages[index] = {
+              ...framesWithImages[index],
+              imageUrl: draftResult.data?.[0]?.url,
+              isGenerating: false,
+              generationError: !draftResult.data?.[0]?.url,
+              isDraft: true // 标记为草稿图
+            };
+          } catch (e) {
+            console.error(`生成第${index + 1}张分镜草图失败:`, e);
+            framesWithImages[index] = {
+              ...framesWithImages[index],
+              isGenerating: false,
+              generationError: true
+            };
+          }
+          
+          setFrames([...framesWithImages]);
+          
+          // 等待1秒后生成下一张分镜
+          setTimeout(() => {
+            generateNextDraftFrame(index + 1);
+          }, 1000);
+        };
         
-        setFrames([...framesWithImages]);
+        // 开始生成第一张分镜
+        generateNextDraftFrame(0);
       }
       
       // 生成完成后隐藏全局动效
@@ -179,6 +193,15 @@ const App: React.FC = () => {
         isDraft: false // 标记为精修图
       };
       setFrames(finalFrames);
+      
+      // 自动生成下一个分镜
+      const nextFrameIndex = finalFrames.findIndex((f, i) => i > frameIndex && !f.imageUrl && !f.isGenerating);
+      if (nextFrameIndex !== -1) {
+        // 等待1秒后自动生成下一个分镜，给用户视觉反馈时间
+        setTimeout(() => {
+          handleRegenerateFrame(finalFrames[nextFrameIndex].id);
+        }, 1000);
+      }
     } catch(e) {
       const finalFrames = [...frames];
       finalFrames[frameIndex].isGenerating = false;

@@ -116,34 +116,11 @@ const PromptCard = ({
 const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, onBack, regenerateImage, lang, settings, isGlobalLoading, updateConfig, setCurrentStep }) => {
     const [activeFrameIndex, setActiveFrameIndex] = useState(0);
     const [showSymbolHelp, setShowSymbolHelp] = useState(false);
-    const [isGeneratingNext, setIsGeneratingNext] = useState(false);
     const activeFrame = frames[activeFrameIndex];
     const tr = (key: any) => t(lang, key);
     
     // 检查是否有任何分镜正在生成
     const isAnyFrameGenerating = frames.some(frame => frame.isGenerating);
-    
-    // 检查是否有未生成图片的分镜
-    const hasUngeneratedFrames = frames.some(frame => !frame.imageUrl && !frame.isGenerating);
-    
-    // 生成下一个分镜图片
-    const generateNextFrame = async () => {
-        setIsGeneratingNext(true);
-        try {
-            // 找到下一个没有图片且未在生成中的分镜
-            const nextFrameIndex = frames.findIndex(frame => !frame.imageUrl && !frame.isGenerating);
-            if (nextFrameIndex !== -1) {
-                // 生成该分镜的图片
-                await regenerateImage(frames[nextFrameIndex].id);
-                // 切换到刚生成的分镜
-                setActiveFrameIndex(nextFrameIndex);
-            }
-        } catch (error) {
-            console.error('生成下一个分镜失败:', error);
-        } finally {
-            setIsGeneratingNext(false);
-        }
-    };
     
     const canvasRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -819,18 +796,6 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             <div className="mb-4 pb-4 border-b border-gray-100 flex-shrink-0">
                 <button onClick={onNext} className="w-full py-3 border-2 border-purple-600 hover:bg-purple-700 hover:text-white bg-transparent text-purple-600 rounded-xl font-bold text-sm shadow-lg mb-2 transition-all duration-200">{tr('exportProject')}</button>
                 <button onClick={onBack} className="w-full py-3 border-2 border-purple-600 hover:bg-purple-700 hover:text-white bg-transparent text-purple-600 rounded-xl font-bold text-sm shadow-lg mb-2 transition-all duration-200">{tr('back')}</button>
-                <button 
-                    onClick={generateNextFrame} 
-                    disabled={isGeneratingNext || !hasUngeneratedFrames} 
-                    className={`w-full py-3 border-2 ${isGeneratingNext || !hasUngeneratedFrames ? 'border-gray-300 text-gray-300 cursor-not-allowed' : 'border-green-600 hover:bg-green-700 hover:text-white text-green-600'} bg-transparent rounded-xl font-bold text-sm shadow-lg transition-all duration-200`}
-                >
-                    {isGeneratingNext ? (
-                        <div className="flex items-center justify-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                            {tr('generatingNext')}
-                        </div>
-                    ) : hasUngeneratedFrames ? tr('generateNextFrame') : tr('allFramesGenerated')}
-                </button>
             </div>
             <div className="overflow-y-auto flex-1 space-y-3 pr-1 custom-scrollbar" style={{ maxHeight: 'calc(100vh - 300px)' }}>
                 {frames.map((frame, idx) => (
