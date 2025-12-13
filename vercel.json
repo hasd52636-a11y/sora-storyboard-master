@@ -20,6 +20,10 @@
     {
       "use": "@vercel/edge",
       "src": "api/proxy-image.ts"
+    },
+    {
+      "use": "@vercel/edge",
+      "src": "api/test-env.ts"
     }
   ],
   "rewrites": [
