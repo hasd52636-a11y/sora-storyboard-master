@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "CommonJS",
+    "lib": [
+      "ES2022"
+    ],
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "node",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "outDir": "./api-dist",
+    "rootDir": "./api",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noEmit": false
+  },
+  "include": [
+    "./api/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

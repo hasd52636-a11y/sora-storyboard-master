@@ -561,7 +561,7 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                                     {config.referenceImage && (
                                         <div className="w-1/5 flex-shrink-0 flex flex-col">
                                             <div className="border-4 border-dashed border-red-500 bg-white relative flex-1">
-                                                 <div className="absolute top-0 left-0 shadow-sm bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 z-10 tracking-widest uppercase rounded-br-sm flex items-center">REF SUBJECT</div>
+                                                 <div className="absolute -top-8 left-0 shadow-sm bg-red-500 text-white text-[12px] font-bold px-3 py-1 z-10 tracking-widest uppercase rounded-sm min-h-[28px] flex items-center">REF SUBJECT</div>
                                                 <img src={config.referenceImage} className="w-full h-full object-contain block" />
                                             </div>
                                         </div>
@@ -580,7 +580,7 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                                                         {/* Frame Box */}
                                                         <div className="border-4 border-blue-600 bg-white relative flex flex-col h-full">
                                                             {/* Top Labels */}
-                                                            <div className="absolute top-0 left-0 bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 z-10 shadow-sm uppercase tracking-wider flex items-center justify-center rounded-br-sm">
+                                                            <div className="absolute -top-3 left-0 bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 z-10 shadow-sm uppercase tracking-wider flex items-center justify-center">
                                                                 SC-{frame.number.toString().padStart(2, '0')}
                                                             </div>
 

@@ -51,31 +51,46 @@ export default async function handler(req: Request) {
       }));
     }
     
-    // 从自定义 Header 中获取用户密钥 (保留您的动态密钥逻辑)
-    const KEY = req.headers.get('x-sf-key'); 
-    if (!KEY) {
-      // 4. 未授权返回中添加 CORS 头
-      return withCORSHeaders(new Response(JSON.stringify({ error: 'Authorization required: Missing X-SF-Key in headers.' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-      }));
-    }
+     // 从自定义 Header 中获取用户密钥 (保留您的动态密钥逻辑)
+     const KEY = req.headers.get('x-sf-key');
+     if (!KEY) {
+       // 4. 未授权返回中添加 CORS 头
+       return withCORSHeaders(new Response(JSON.stringify({ error: 'Authorization required: Missing X-SF-Key in headers.' }), {
+           status: 401,
+           headers: { 'Content-Type': 'application/json' }
+       }));
+     }
     
-    const ENDPOINT = 'https://api.siliconflow.cn/v1/chat/completions'
-    
-    // 注意：req.json() 只能调用一次，这里使用健壮性处理
+    // 从请求体中获取 apiConfig (支持自定义)
     const body = await req.json().catch(() => ({})) as ChatRequestBody; 
+    const apiConfig = body.apiConfig || {};
+    
+    // 确定 API 端点
+    let baseUrl = apiConfig.baseUrl || 'https://api.siliconflow.cn/v1';
+    // 移除末尾斜杠
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    
+    // 如果是完整路径则不添加 /chat/completions，否则添加
+    const endpoint = baseUrl.includes('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
+    
+    // 确定模型
+    const model = apiConfig.defaultModel || 'deepseek-ai/DeepSeek-R1';
 
     try {
         // 移除流式响应，使用常规请求
-        const r = await fetch(ENDPOINT, {
+        const r = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 // 使用用户提供的动态 KEY
                 Authorization: `Bearer ${KEY}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ model: 'deepseek-ai/DeepSeek-R1', ...body }),
+            body: JSON.stringify({ 
+                model: model, 
+                messages: body.messages,
+                max_tokens: body.max_tokens,
+                temperature: body.temperature
+            }),
             signal: AbortSignal.timeout(28000) // 增加到28秒，确保在Serverless Function的30秒限制内
         });
         

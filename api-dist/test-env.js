@@ -6,8 +6,6 @@ exports.config = void 0;
 exports.OPTIONS = OPTIONS;
 exports.POST = POST;
 exports.config = { runtime: 'edge' };
-// 导入Response构造函数
-const node_fetch_1 = require("node-fetch");
 // 1. 定义 CORS 头部
 // 本地测试时使用通配符，生产环境请替换为您网站的实际域名 (含 https://)
 const CORS_HEADERS = {
@@ -18,7 +16,7 @@ const CORS_HEADERS = {
 };
 // 辅助函数：将 CORS 头添加到 Response
 function withCORSHeaders(response) {
-    const newResponse = new node_fetch_1.Response(response.body, response);
+    const newResponse = new Response(response.body, response);
     // 复制原始 Headers
     for (const [key, value] of response.headers.entries()) {
         newResponse.headers.set(key, value);
@@ -31,7 +29,7 @@ function withCORSHeaders(response) {
 }
 // 处理 OPTIONS 请求（预检请求）
 async function OPTIONS(request) {
-    return new node_fetch_1.Response(null, { status: 204, headers: CORS_HEADERS });
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 async function POST(request) {
     try {
@@ -48,7 +46,7 @@ async function POST(request) {
         // 检查密钥是否存在
         const hasSiliconFlowKeys = Object.values(siliconFlowKeys).some(key => key && key !== 'your_silicon_flow_api_key_here');
         const hasOtherKeys = Object.values(otherKeys).some(key => key);
-        const response = new node_fetch_1.Response(JSON.stringify({
+        const response = new Response(JSON.stringify({
             success: true,
             message: '环境变量测试成功',
             timestamp: new Date().toISOString(),
@@ -81,7 +79,7 @@ async function POST(request) {
     }
     catch (error) {
         console.error('Environment test error:', error);
-        const errorResponse = new node_fetch_1.Response(JSON.stringify({
+        const errorResponse = new Response(JSON.stringify({
             success: false,
             message: '环境变量测试失败',
             error: error instanceof Error ? error.message : '未知错误',

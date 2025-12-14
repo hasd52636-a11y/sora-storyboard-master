@@ -59,23 +59,34 @@ export default async function handler(req: Request) {
     }
 
     try {
-        // 从自定义 Header 中获取用户密钥
-        const KEY = req.headers.get('x-sf-key');
+        // 从自定义 Header 中获取用户密钥 - 兼容不同环境的 headers 对象
+        const KEY = req.headers.get ? req.headers.get('x-sf-key') : (req.headers as any)['x-sf-key'];
         if (!KEY) {
             return withCORSHeaders(new Response(JSON.stringify({ error: 'Authorization required: Missing X-SF-Key in headers.' }), { status: 401, headers: { 'Content-Type': 'application/json' } }));
         }
 
         // 注意：req.json() 只能调用一次，这里使用健壮性处理
         const body = await req.json().catch(() => ({})) as ImageRequestBody;
-        const { prompt, size = '512x512', steps = 30, n = 1 } = body;
+        const { prompt, size = '512x512', steps = 30, n = 1, apiConfig } = body;
 
-        const sfResponse = await fetch('https://api.siliconflow.cn/v1/images/generations', {
+        // 确定 API 端点
+        let baseUrl = apiConfig?.baseUrl || 'https://api.siliconflow.cn/v1';
+        // 移除末尾斜杠
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+        
+        // 如果是完整路径则不添加 /images/generations，否则添加
+        const endpoint = baseUrl.includes('/images/generations') ? baseUrl : `${baseUrl}/images/generations`;
+        
+        // 确定模型
+        const model = apiConfig?.defaultModel || 'black-forest-labs/FLUX.1-schnell';
+
+        const sfResponse = await fetch(endpoint, {
             method: 'POST',
             headers: { 
                 Authorization: `Bearer ${KEY}`, 
                 'Content-Type': 'application/json' 
             },
-            body: JSON.stringify({ model: 'black-forest-labs/FLUX.1-schnell', prompt, size, steps, n }),
+            body: JSON.stringify({ model, prompt, size, steps, n }),
             signal: AbortSignal.timeout(58000) // 保持58秒超时，确保在Serverless Function的60秒限制内
         });
 

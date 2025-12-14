@@ -171,14 +171,9 @@ export const testApiConnection = async (config: ApiConfig, type: 'llm' | 'image'
        let requestUrl: string;
        
        if (isProduction) {
-      if (type === 'image') {
-        // 生产环境图片生成使用代理
-        requestUrl = '/api/ai/proxy-image';
-      } else {
-        // 其他生产环境请求直接使用原始API地址
-        requestUrl = baseUrl;
-      }
-    } else {
+         // 生产环境直接使用原始API地址
+         requestUrl = baseUrl;
+       } else {
          // 开发环境使用代理避免CORS
          let proxyUrl: string;
          if (baseUrl.includes('deepseek.com')) {

@@ -5,7 +5,6 @@ import SymbolIcon from './SymbolIcon';
 import StepIndicator from './StepIndicator';
 import { t } from '../locales';
 import { translateText } from '../services/geminiService';
-import { fetchRetry } from '../src/utils/fetchRetry';
 
 interface EditorProps {
     frames: StoryboardFrame[];
@@ -115,7 +114,6 @@ const PromptCard = ({
 
 
 const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, onBack, regenerateImage, lang, settings, isGlobalLoading, updateConfig, setCurrentStep }) => {
-    const [isLoading, setIsLoading] = useState(false);
     const [activeFrameIndex, setActiveFrameIndex] = useState(0);
     const [showSymbolHelp, setShowSymbolHelp] = useState(false);
     const activeFrame = frames[activeFrameIndex];
@@ -127,102 +125,31 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
     const canvasRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Interaction State
-    const [selectedSymbolId, setSelectedSymbolId] = useState<string | null>(null);
-    const [interactionMode, setInteractionMode] = useState<'move' | 'resize-se' | 'resize-sw' | 'resize-ne' | 'resize-nw' | 'rotate' | null>(null);
-    const [startPos, setStartPos] = useState({ x: 0, y: 0 });
-    const [initialSymbolState, setInitialSymbolState] = useState<SymbolItem | null>(null);
-    const [isInteracting, setIsInteracting] = useState(false); 
-
-    // Editing State
-    const [editingSymbol, setEditingSymbol] = useState<SymbolItem | null>(null);
-
-    // Toast State
-    const [toastMsg, setToastMsg] = useState<string | null>(null);
-  
-    // Custom Confirmation Modal State
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [confirmModalFrameId, setConfirmModalFrameId] = useState<string | null>(null);
-    // Custom Alert Modal State
-    const [showAlertModal, setShowAlertModal] = useState(false);
-    const [alertModalMessage, setAlertModalMessage] = useState('');
-    // Control animation during text editing
-    const [isTextEditing, setIsTextEditing] = useState(false);
-  
-    // Reference Subject State
-    const [isReferenceImageVisible, setIsReferenceImageVisible] = useState(false);
-    const [isGeneratingMask, setIsGeneratingMask] = useState(false);
-    const [generatedMaskImage, setGeneratedMaskImage] = useState<string | null>(null);
-
-    const [isGeneratingViews, setIsGeneratingViews] = useState(false);
-    const [generatedViews, setGeneratedViews] = useState<string[]>([]);
-    const [selectedResult, setSelectedResult] = useState<string | null>(null);
-    const [isShowEffect, setIsShowEffect] = useState(false);
-  
-    // Auto-detected subjects
-    const [detectedSubjects, setDetectedSubjects] = useState<{ x: number; y: number; width: number; height: number; color: string }[]>([]);
-    const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
-  
-    // Subject Selection State
-    const [isSelecting, setIsSelecting] = useState(false);
-    const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
-    const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
-    const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-    const referenceImageRef = useRef<HTMLDivElement>(null);
-
-    // 自动检测主体
-    const handleDetectSubjects = async () => {
-        if (!config.referenceImage) return;
-
-        setIsLoading(true);
-        try {
-            const response = await fetch('/api/ai/detect-objects', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    imageBase64: config.referenceImage,
-                    apiConfig: settings.image 
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Object detection failed');
-            }
-
-            const data = await response.json();
-            if (data.boxes) {
-                const subjects = data.boxes.map((box: number[], index: number) => ({
-                    x: box[0],
-                    y: box[1],
-                    width: box[2] - box[0],
-                    height: box[3] - box[1],
-                    color: ['#FF5733', '#33FF57', '#3357FF'][index % 3],
-                }));
-                setDetectedSubjects(subjects);
-            }
-        } catch (error) {
-            console.error('Error detecting subjects:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0] && updateConfig) {
             const reader = new FileReader();
             reader.onload = (ev) => {
                 if (ev.target?.result) {
                     updateConfig({ referenceImage: ev.target.result as string });
+                    // 上传后不再自动弹窗显示大图
+                    // setIsReferenceImageVisible(true);
                     setGeneratedMaskImage(null);
                     setGeneratedViews([]);
                     setSelectedResult(null);
+                    // 重置选择区域状态
                     setSelectedArea(null);
                     setIsSelecting(false);
                     setSelectionStart({ x: 0, y: 0 });
                     setSelectionEnd({ x: 0, y: 0 });
                     
-                    // 上传后自动识别主体
-                    handleDetectSubjects();
+                    // 模拟自动识别主体（实际项目中应调用AI接口）
+                    setTimeout(() => {
+                        // 假设识别到一个主体
+                        const mockSubjects = [
+                            { x: 20, y: 30, width: 80, height: 100, color: '#FF5733' }
+                        ];
+                        setDetectedSubjects(mockSubjects);
+                    }, 1000);
                 }
             };
             reader.readAsDataURL(e.target.files[0]);
@@ -438,7 +365,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             // 构建抠图提示词
             let maskPrompt = `请精确抠出图片中的主要主体，生成透明背景的图片。`;
             
-            // 如果用户选择了特定区域或有自动检测结果，添加区域信息
+            // 如果用户选择了特定区域，添加区域信息
             if (selectedArea || detectedSubjects.length > 0) {
                 const targetArea = selectedArea || detectedSubjects[0];
                 // 将坐标转换为更直观的描述
@@ -452,96 +379,48 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             
             // 根据用户设置选择合适的图像API
             let response;
-            // 检查是否为生产环境
-            const isProduction = import.meta.env.PROD;
-            
             if (settings.image.provider === 'gemini') {
-                if (isProduction) {
-                    // 生产环境使用代理API调用Gemini
-                    response = await fetchRetry('/api/ai/image', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-SF-Key': settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            prompt: maskPrompt,
-                            size: '384x384',
-                            apiConfig: {
-                                baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-                                defaultModel: settings.image.defaultModel || 'gemini-pro-vision',
-                                provider: 'gemini'
-                            },
-                            reference_image: config.referenceImage
-                        })
-                    });
-                } else {
-                    // 开发环境直接调用Gemini API
-                    response = await fetchRetry('https://generativelanguage.googleapis.com/v1beta/models/' + settings.image.defaultModel + ':generateContent', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            contents: [{
-                                parts: [{
-                                    inlineData: {
-                                        mimeType: 'image/png',
-                                        data: config.referenceImage.split(',')[1] // 移除Data URL前缀
-                                    }
-                                }, {
-                                    text: maskPrompt
-                                }]
-                            }],
-                            generationConfig: {
-                                responseMimeType: 'image/png',
-                                responseImageSize: '384x384'
-                            }
-                        })
-                    });
-                }
+                // 使用Gemini API
+                response = await fetchRetry('https://generativelanguage.googleapis.com/v1beta/models/' + settings.image.defaultModel + ':generateContent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                inlineData: {
+                                    mimeType: 'image/png',
+                                    data: config.referenceImage.split(',')[1] // 移除Data URL前缀
+                                }
+                            }, {
+                                text: maskPrompt
+                            }]
+                        }],
+                        generationConfig: {
+                            responseMimeType: 'image/png',
+                            responseImageSize: '384x384'
+                        }
+                    })
+                });
             } else if (settings.image.provider === 'openai' || settings.image.baseUrl) {
                 // 使用OpenAI兼容API
                 const baseUrl = settings.image.baseUrl || 'https://api.openai.com/v1';
-                
-                if (isProduction) {
-                    // 生产环境使用代理
-                    response = await fetchRetry('/api/ai/image', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-SF-Key': settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            prompt: maskPrompt,
-                            size: '384x384',
-                            n: 1,
-                            apiConfig: {
-                                baseUrl: baseUrl,
-                                defaultModel: settings.image.defaultModel || 'dall-e-3',
-                                provider: 'openai'
-                            },
-                            reference_image: config.referenceImage
-                        })
-                    });
-                } else {
-                    // 开发环境直接调用
-                    response = await fetchRetry(baseUrl + '/images/generations', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            prompt: maskPrompt,
-                            size: '384x384',
-                            n: 1,
-                            model: settings.image.defaultModel || 'dall-e-3',
-                            reference_image: config.referenceImage // 添加参考图片
-                        })
-                    });
-                }
+                response = await fetchRetry(baseUrl + '/images/generations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        prompt: maskPrompt,
+                        size: '384x384',
+                        n: 1,
+                        model: settings.image.defaultModel || 'dall-e-3',
+                        reference_image: config.referenceImage // 添加参考图片
+                    })
+                });
             } else {
                 // 默认使用硅基流动API
                 response = await fetchRetry('/api/ai/image', {
@@ -555,8 +434,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                         size: '384x384',
                         steps: 30,
                         n: 1,
-                        reference_image: config.referenceImage, // 添加参考图片
-                        apiConfig: settings.image // 传递完整配置
+                        reference_image: config.referenceImage // 添加参考图片
                     })
                 });
             }
@@ -629,96 +507,48 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             
             // 根据用户设置选择合适的图像API
             let response;
-            // 检查是否为生产环境
-            const isProduction = import.meta.env.PROD;
-
             if (settings.image.provider === 'gemini') {
-                if (isProduction) {
-                    // 生产环境使用代理API调用Gemini
-                    response = await fetchRetry('/api/ai/image', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-SF-Key': settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            prompt: viewsPrompt,
-                            size: '384x512',
-                            apiConfig: {
-                                baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-                                defaultModel: settings.image.defaultModel || 'gemini-pro-vision',
-                                provider: 'gemini'
-                            },
-                            reference_image: config.referenceImage
-                        })
-                    });
-                } else {
-                    // 开发环境直接调用Gemini API
-                    response = await fetchRetry('https://generativelanguage.googleapis.com/v1beta/models/' + settings.image.defaultModel + ':generateContent', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            contents: [{
-                                parts: [{
-                                    inlineData: {
-                                        mimeType: 'image/png',
-                                        data: config.referenceImage.split(',')[1] // 移除Data URL前缀
-                                    }
-                                }, {
-                                    text: viewsPrompt
-                                }]
-                            }],
-                            generationConfig: {
-                                responseMimeType: 'image/png',
-                                responseImageSize: '384x512'
-                            }
-                        })
-                    });
-                }
+                // 使用Gemini API
+                response = await fetchRetry('https://generativelanguage.googleapis.com/v1beta/models/' + settings.image.defaultModel + ':generateContent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                inlineData: {
+                                    mimeType: 'image/png',
+                                    data: config.referenceImage.split(',')[1] // 移除Data URL前缀
+                                }
+                            }, {
+                                text: viewsPrompt
+                            }]
+                        }],
+                        generationConfig: {
+                            responseMimeType: 'image/png',
+                            responseImageSize: '384x512'
+                        }
+                    })
+                });
             } else if (settings.image.provider === 'openai' || settings.image.baseUrl) {
                 // 使用OpenAI兼容API
                 const baseUrl = settings.image.baseUrl || 'https://api.openai.com/v1';
-                
-                if (isProduction) {
-                    // 生产环境使用代理
-                    response = await fetchRetry('/api/ai/image', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-SF-Key': settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            prompt: viewsPrompt,
-                            size: '384x512',
-                            n: 1,
-                            apiConfig: {
-                                baseUrl: baseUrl,
-                                defaultModel: settings.image.defaultModel || 'dall-e-3',
-                                provider: 'openai'
-                            },
-                            reference_image: config.referenceImage
-                        })
-                    });
-                } else {
-                    // 开发环境直接调用
-                    response = await fetchRetry(baseUrl + '/images/generations', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + settings.image.apiKey
-                        },
-                        body: JSON.stringify({
-                            prompt: viewsPrompt,
-                            size: '384x512',
-                            n: 1,
-                            model: settings.image.defaultModel || 'dall-e-3',
-                            reference_image: config.referenceImage // 添加参考图片
-                        })
-                    });
-                }
+                response = await fetchRetry(baseUrl + '/images/generations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + settings.image.apiKey
+                    },
+                    body: JSON.stringify({
+                        prompt: viewsPrompt,
+                        size: '384x512',
+                        n: 1,
+                        model: settings.image.defaultModel || 'dall-e-3',
+                        reference_image: config.referenceImage // 添加参考图片
+                    })
+                });
             } else {
                 // 默认使用硅基流动API
                 response = await fetchRetry('/api/ai/image', {
@@ -732,8 +562,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                         size: '384x512', // 垂直方向较长，适合排列三个视图
                         steps: 30,
                         reference_image: config.referenceImage, // 添加参考图片
-                        n: 1,
-                        apiConfig: settings.image // 传递完整配置
+                        n: 1
                     })
                 });
             }
@@ -866,10 +695,47 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         }
     };
 
+  // Interaction State
+  const [selectedSymbolId, setSelectedSymbolId] = useState<string | null>(null);
+  const [interactionMode, setInteractionMode] = useState<'move' | 'resize-se' | 'resize-sw' | 'resize-ne' | 'resize-nw' | 'rotate' | null>(null);
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [initialSymbolState, setInitialSymbolState] = useState<SymbolItem | null>(null);
+  const [isInteracting, setIsInteracting] = useState(false); 
 
+  // Editing State
+  const [editingSymbol, setEditingSymbol] = useState<SymbolItem | null>(null);
 
-
-
+  // Toast State
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  
+  // Custom Confirmation Modal State// --- 确认修改弹窗状态 --- 
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalFrameId, setConfirmModalFrameId] = useState<string | null>(null);
+  // 自定义提示框状态
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertModalMessage, setAlertModalMessage] = useState('');
+  // 控制是否在文本修改时显示动画
+  const [isTextEditing, setIsTextEditing] = useState(false);
+  
+  // 参考主体处理状态
+  const [isReferenceImageVisible, setIsReferenceImageVisible] = useState(false);
+  const [isGeneratingMask, setIsGeneratingMask] = useState(false);
+  const [isGeneratingViews, setIsGeneratingViews] = useState(false);
+  const [generatedMaskImage, setGeneratedMaskImage] = useState<string | null>(null);
+  const [generatedViews, setGeneratedViews] = useState<string[]>([]);
+  const [selectedResult, setSelectedResult] = useState<string | null>(null);
+  const [isShowEffect, setIsShowEffect] = useState(false);
+  
+  // 自动检测的主体状态
+  const [detectedSubjects, setDetectedSubjects] = useState<{ x: number; y: number; width: number; height: number; color: string }[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<number | null>(null);
+  
+  // 主体标记功能状态
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
+  const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
+  const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const referenceImageRef = useRef<HTMLDivElement>(null);
   
   const getAspectRatioStyle = () => {
      const [w, h] = config.aspectRatio.split(':').map(Number);
@@ -1258,8 +1124,12 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                     {config.referenceImage ? (
                         <div 
                             ref={referenceImageRef}
-                            className="w-full rounded-lg overflow-hidden shadow-md relative border-2 border-dashed border-red-400 bg-white"
+                            className="w-full rounded-lg overflow-hidden shadow-md cursor-crosshair relative border-2 border-dashed border-red-400 bg-white"
                             style={{ height: '150px', overflow: 'hidden' }}
+                            onMouseDown={handleRefImageMouseDown}
+                            onMouseMove={handleRefImageMouseMove}
+                            onMouseUp={handleRefImageMouseUp}
+                            onMouseLeave={handleRefImageMouseUp}
                         >
                             <img 
                                 src={config.referenceImage} 
@@ -1267,9 +1137,96 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                 onClick={() => setIsReferenceImageVisible(true)}
                                 title="点击查看大图，鼠标拖拽选择主体区域"
                             />
-                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                                 <span className="text-white text-xs font-bold">点击查看大图</span>
                             </div>
+                            
+                            {/* 已选择的主体区域框（可调节大小的） */}
+                            {selectedArea && (
+                                <div 
+                                    className="absolute border-3 border-blue-500 pointer-events-auto cursor-move transition-all shadow-xl"
+                                    style={{
+                                        left: selectedArea.x,
+                                        top: selectedArea.y,
+                                        width: selectedArea.width,
+                                        height: selectedArea.height,
+                                        backgroundColor: 'rgba(59, 130, 246, 0.2)'
+                                    }}
+                                    onMouseDown={handleSelectionDragStart}
+                                    title="拖动可移动选择框"
+                                >
+                                    <div 
+                                        className="absolute top-2 left-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded"
+                                    >
+                                        {t(lang, 'refSubject')}
+                                    </div>
+                                    
+                                    {/* 可调节手柄 */}
+                                    <div className="absolute -top-1 -left-1 w-2 h-2 bg-blue-700 rounded-full cursor-nw-resize" onMouseDown={(e) => handleResizeStart(e, 'nw')}></div>
+                                    <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-n-resize" onMouseDown={(e) => handleResizeStart(e, 'n')}></div>
+                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-700 rounded-full cursor-ne-resize" onMouseDown={(e) => handleResizeStart(e, 'ne')}></div>
+                                    <div className="absolute left-1/2 -bottom-1 transform -translate-x-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-s-resize" onMouseDown={(e) => handleResizeStart(e, 's')}></div>
+                                    <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-blue-700 rounded-full cursor-sw-resize" onMouseDown={(e) => handleResizeStart(e, 'sw')}></div>
+                                    <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-blue-700 rounded-full cursor-se-resize" onMouseDown={(e) => handleResizeStart(e, 'se')}></div>
+                                    <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-w-resize" onMouseDown={(e) => handleResizeStart(e, 'w')}></div>
+                                    <div className="absolute -right-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-700 rounded-full cursor-e-resize" onMouseDown={(e) => handleResizeStart(e, 'e')}></div>
+                                </div>
+                            )}
+                            
+                            {/* 自动识别的主体框（未选择时显示） */}
+                            {detectedSubjects.length > 0 && !selectedArea && (
+                                <div 
+                                    className="absolute border-3 pointer-events-auto cursor-pointer transition-all ring-2 ring-white shadow-xl"
+                                    style={{
+                                        left: detectedSubjects[0].x,
+                                        top: detectedSubjects[0].y,
+                                        width: detectedSubjects[0].width,
+                                        height: detectedSubjects[0].height,
+                                        backgroundColor: 'rgba(51, 255, 87, 0.125)',
+                                        borderColor: 'rgb(51, 255, 87)'
+                                    }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedArea(detectedSubjects[0]);
+                                    }}
+                                    title="选择主体"
+                                >
+                                    <div 
+                                        className="absolute top-2 left-1 bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded"
+                                    >
+                                        {t(lang, 'refSubject')}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* 正在选择的临时框 */}
+                            {isSelecting && (
+                                <div 
+                                    className="absolute border-3 border-blue-600 bg-blue-200 bg-opacity-30 pointer-events-none shadow-lg"
+                                    style={{
+                                        left: Math.min(selectionStart.x, selectionEnd.x),
+                                        top: Math.min(selectionStart.y, selectionEnd.y),
+                                        width: Math.abs(selectionStart.x - selectionEnd.x),
+                                        height: Math.abs(selectionStart.y - selectionEnd.y)
+                                    }}
+                                />
+                            )}
+                            
+                            {/* 简化的提示：只有清除识别按钮 */}
+                            {detectedSubjects.length > 0 && (
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDetectedSubjects([]);
+                                        setSelectedSubject(null);
+                                        setSelectedArea(null);
+                                    }}
+                                    className="absolute bottom-3 right-3 text-xs bg-white text-blue-900 px-2 py-0.5 rounded hover:bg-gray-100 font-bold shadow-md"
+                                    title="清除识别结果"
+                                >
+                                    清除识别
+                                </button>
+                            )}
                             
                             {/* 删除按钮 */}
                             {config.referenceImage && updateConfig && (
@@ -1427,12 +1384,6 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                 )}
                                 {generatedViews.length > 0 && (
                                     <>
-                                        <button
-                                            onClick={() => handleGenerateViews()}
-                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700"
-                                        >
-                                            重新生成
-                                        </button>
                                         <button
                                             onClick={confirmResult}
                                             disabled={!selectedResult}
