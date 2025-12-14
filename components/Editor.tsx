@@ -5,6 +5,7 @@ import SymbolIcon from './SymbolIcon';
 import StepIndicator from './StepIndicator';
 import { t } from '../locales';
 import { translateText } from '../services/geminiService';
+import { fetchRetry } from '../src/utils/fetchRetry';
 
 interface EditorProps {
     frames: StoryboardFrame[];

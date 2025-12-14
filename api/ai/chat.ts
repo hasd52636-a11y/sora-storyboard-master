@@ -3,8 +3,7 @@ export const config = {
   maxDuration: 30
 };
 
-// 导入Response构造函数
-import { Response } from 'node-fetch';
+// 使用Web API的Response对象（Vercel Edge Runtime原生支持）
 
 // 定义请求体接口
 interface ChatRequestBody {
