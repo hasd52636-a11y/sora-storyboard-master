@@ -22,7 +22,7 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
 }) => {
   const [recommendation, setRecommendation] = useState<ReturnType<typeof generateRecommendationSummary> | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [inputMode, setInputMode] = useState<'direct' | 'dialog' | null>(null);
+  const [inputMode, setInputMode] = useState<'direct' | 'dialog'>('direct');
 
   // 当脚本内容变化时，自动生成推荐
   useEffect(() => {
@@ -46,7 +46,6 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
 
   const handleScriptConfirmed = (script: string) => {
     updateConfig({ script });
-    setInputMode('direct');
     // 自动生成推荐
     const rec = generateRecommendationSummary(script);
     setRecommendation(rec);
@@ -55,79 +54,6 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
       frameCount: rec.frameCount
     });
   };
-
-  // 如果还没选择输入模式，显示选择界面
-  if (inputMode === null) {
-    return (
-      <div className="max-w-5xl mx-auto px-4">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">
-            ✨ {lang === 'zh' ? '开始创作你的分镜脚本' : 'Create Your Storyboard Script'}
-          </h1>
-          <p className="text-xl text-gray-600">
-            {lang === 'zh' ? '选择你喜欢的方式来创作' : 'Choose your preferred way to create'}
-          </p>
-        </div>
-
-        {/* Mode Selection Cards */}
-        <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-          {/* Direct Input Mode */}
-          <button
-            onClick={() => setInputMode('direct')}
-            className="group p-8 bg-white/80 backdrop-blur-md rounded-3xl shadow-lg border-2 border-gray-200 hover:border-purple-500 hover:shadow-xl transition-all text-left"
-          >
-            <div className="text-4xl mb-4">✍️</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors">
-              {lang === 'zh' ? '直接输入' : 'Direct Input'}
-            </h2>
-            <p className="text-gray-600">
-              {lang === 'zh' 
-                ? '直接输入你的故事内容，快速生成分镜'
-                : 'Input your story directly and quickly generate storyboards'}
-            </p>
-          </button>
-
-          {/* Dialog Mode */}
-          <button
-            onClick={() => setInputMode('dialog')}
-            className="group p-8 bg-white/80 backdrop-blur-md rounded-3xl shadow-lg border-2 border-gray-200 hover:border-purple-500 hover:shadow-xl transition-all text-left"
-          >
-            <div className="text-4xl mb-4">💬</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors">
-              {lang === 'zh' ? '对话优化' : 'Dialog Refinement'}
-            </h2>
-            <p className="text-gray-600">
-              {lang === 'zh'
-                ? '与AI对话，逐步完善你的创意文案'
-                : 'Chat with AI to refine your creative script step by step'}
-            </p>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Dialog Mode
-  if (inputMode === 'dialog') {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <button
-            onClick={() => setInputMode(null)}
-            className="text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-2"
-          >
-            ← {lang === 'zh' ? '返回' : 'Back'}
-          </button>
-        </div>
-        <ScriptDialog
-          onScriptConfirmed={handleScriptConfirmed}
-          appSettings={appSettings}
-          lang={lang}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-5xl mx-auto px-4">
@@ -143,6 +69,30 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
 
       {/* Main Card */}
       <div className="bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-8 border border-white/50">
+        {/* Input Mode Toggle */}
+        <div className="mb-8 flex gap-2">
+          <button
+            onClick={() => setInputMode('direct')}
+            className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+              inputMode === 'direct'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            ✍️ {lang === 'zh' ? '直接输入' : 'Direct'}
+          </button>
+          <button
+            onClick={() => setInputMode('dialog')}
+            className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+              inputMode === 'dialog'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            💬 {lang === 'zh' ? '对话优化' : 'Dialog'}
+          </button>
+        </div>
+
         {/* Step 1: 输入脚本 */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
@@ -152,35 +102,37 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
             <h2 className="text-2xl font-bold text-gray-800">
               📝 {lang === 'zh' ? '输入你的故事脚本' : 'Input Your Story Script'}
             </h2>
-            <button
-              onClick={() => setInputMode(null)}
-              className="ml-auto text-sm text-purple-600 hover:text-purple-700 font-semibold"
-            >
-              {lang === 'zh' ? '← 更换方式' : '← Change Mode'}
-            </button>
           </div>
           
-          <div className="space-y-3">
-            <textarea
-              value={config.script}
-              onChange={(e) => updateConfig({ script: e.target.value })}
-              placeholder={lang === 'zh' 
-                ? "在这里输入你的故事内容...\n\n例如：\n一个年轻的宇航员在太空站中醒来，发现自己是唯一的幸存者。他必须找到回家的方法，同时揭开这场灾难的真相..."
-                : "Input your story content here...\n\nExample:\nA young astronaut wakes up in a space station and discovers he is the only survivor. He must find a way home while uncovering the truth about the disaster..."}
-              className="w-full h-48 px-6 py-4 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:outline-none transition-all resize-none text-lg"
-            />
-            
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">
-                {config.script.length} {lang === 'zh' ? '字' : 'chars'}
-              </span>
-              {config.script.length > 0 && (
-                <span className="text-purple-600 font-semibold">
-                  ✨ {lang === 'zh' ? 'AI正在分析你的内容...' : 'AI is analyzing your content...'}
+          {inputMode === 'direct' ? (
+            <div className="space-y-3">
+              <textarea
+                value={config.script}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateConfig({ script: e.target.value })}
+                placeholder={lang === 'zh' 
+                  ? "在这里输入你的故事内容...\n\n例如：\n一个年轻的宇航员在太空站中醒来，发现自己是唯一的幸存者。他必须找到回家的方法，同时揭开这场灾难的真相..."
+                  : "Input your story content here...\n\nExample:\nA young astronaut wakes up in a space station and discovers he is the only survivor. He must find a way home while uncovering the truth about the disaster..."}
+                className="w-full h-48 px-6 py-4 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:outline-none transition-all resize-none text-lg"
+              />
+              
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">
+                  {config.script.length} {lang === 'zh' ? '字' : 'chars'}
                 </span>
-              )}
+                {config.script.length > 0 && (
+                  <span className="text-purple-600 font-semibold">
+                    ✨ {lang === 'zh' ? 'AI正在分析你的内容...' : 'AI is analyzing your content...'}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <ScriptDialog
+              onScriptConfirmed={handleScriptConfirmed}
+              appSettings={appSettings}
+              lang={lang}
+            />
+          )}
         </div>
 
         {/* Step 2: 智能推荐 */}
