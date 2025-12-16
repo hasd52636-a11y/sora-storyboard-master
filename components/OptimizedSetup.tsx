@@ -135,81 +135,15 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
           )}
         </div>
 
-        {/* Step 2: 智能推荐 */}
+        {/* Step 2: 高级选项 */}
         {recommendation && (
           <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
-                2
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                🎨 AI智能推荐
-              </h2>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 space-y-4">
-              {/* 推荐风格 */}
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm">
-                  🎨
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold text-gray-800">推荐风格</h3>
-                    <span className="px-3 py-1 bg-purple-500 text-white text-xs rounded-full font-semibold">
-                      智能推荐
-                    </span>
-                  </div>
-                  <p className="text-lg font-semibold text-purple-600 mb-1">
-                    {lang === 'zh' ? recommendation.style.nameZh : recommendation.style.name}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {recommendation.reasoning.style}
-                  </p>
-                </div>
-              </div>
-
-              {/* 推荐分镜数 */}
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm">
-                  📊
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-800 mb-1">推荐分镜数</h3>
-                  <p className="text-lg font-semibold text-purple-600 mb-1">
-                    {recommendation.frameCount} 个分镜
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {recommendation.reasoning.frameCount}
-                  </p>
-                </div>
-              </div>
-
-              {/* 复杂度分析 */}
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm">
-                  📈
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-800 mb-1">内容复杂度</h3>
-                  <p className="text-lg font-semibold text-purple-600 mb-1">
-                    {recommendation.complexity === 'simple' && '简单'}
-                    {recommendation.complexity === 'medium' && '中等'}
-                    {recommendation.complexity === 'complex' && '复杂'}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {recommendation.reasoning.complexity}
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {/* 高级选项 */}
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="mt-4 text-purple-600 hover:text-purple-700 font-semibold text-sm flex items-center gap-2 transition-colors"
+              className="text-purple-600 hover:text-purple-700 font-semibold text-sm flex items-center gap-2 transition-colors"
             >
-              {showAdvanced ? '▼' : '▶'} 高级选项（手动调整）
+              {showAdvanced ? '▼' : '▶'} {lang === 'zh' ? '高级选项（手动调整）' : 'Advanced Options (Manual Adjustment)'}
             </button>
 
             {showAdvanced && (
