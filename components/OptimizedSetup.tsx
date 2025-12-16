@@ -22,7 +22,7 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
 }) => {
   const [recommendation, setRecommendation] = useState<ReturnType<typeof generateRecommendationSummary> | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [useDialog, setUseDialog] = useState(false);
+  const [inputMode, setInputMode] = useState<'direct' | 'dialog' | null>(null);
 
   // 当脚本内容变化时，自动生成推荐
   useEffect(() => {
@@ -46,7 +46,7 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
 
   const handleScriptConfirmed = (script: string) => {
     updateConfig({ script });
-    setUseDialog(false);
+    setInputMode('direct');
     // 自动生成推荐
     const rec = generateRecommendationSummary(script);
     setRecommendation(rec);
@@ -56,12 +56,65 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
     });
   };
 
-  if (useDialog) {
+  // 如果还没选择输入模式，显示选择界面
+  if (inputMode === null) {
+    return (
+      <div className="max-w-5xl mx-auto px-4">
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent mb-4">
+            ✨ {lang === 'zh' ? '开始创作你的分镜脚本' : 'Create Your Storyboard Script'}
+          </h1>
+          <p className="text-xl text-gray-600">
+            {lang === 'zh' ? '选择你喜欢的方式来创作' : 'Choose your preferred way to create'}
+          </p>
+        </div>
+
+        {/* Mode Selection Cards */}
+        <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          {/* Direct Input Mode */}
+          <button
+            onClick={() => setInputMode('direct')}
+            className="group p-8 bg-white/80 backdrop-blur-md rounded-3xl shadow-lg border-2 border-gray-200 hover:border-purple-500 hover:shadow-xl transition-all text-left"
+          >
+            <div className="text-4xl mb-4">✍️</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors">
+              {lang === 'zh' ? '直接输入' : 'Direct Input'}
+            </h2>
+            <p className="text-gray-600">
+              {lang === 'zh' 
+                ? '直接输入你的故事内容，快速生成分镜'
+                : 'Input your story directly and quickly generate storyboards'}
+            </p>
+          </button>
+
+          {/* Dialog Mode */}
+          <button
+            onClick={() => setInputMode('dialog')}
+            className="group p-8 bg-white/80 backdrop-blur-md rounded-3xl shadow-lg border-2 border-gray-200 hover:border-purple-500 hover:shadow-xl transition-all text-left"
+          >
+            <div className="text-4xl mb-4">💬</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors">
+              {lang === 'zh' ? '对话优化' : 'Dialog Refinement'}
+            </h2>
+            <p className="text-gray-600">
+              {lang === 'zh'
+                ? '与AI对话，逐步完善你的创意文案'
+                : 'Chat with AI to refine your creative script step by step'}
+            </p>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Dialog Mode
+  if (inputMode === 'dialog') {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="mb-6">
           <button
-            onClick={() => setUseDialog(false)}
+            onClick={() => setInputMode(null)}
             className="text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-2"
           >
             ← {lang === 'zh' ? '返回' : 'Back'}
@@ -99,6 +152,12 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
             <h2 className="text-2xl font-bold text-gray-800">
               📝 {lang === 'zh' ? '输入你的故事脚本' : 'Input Your Story Script'}
             </h2>
+            <button
+              onClick={() => setInputMode(null)}
+              className="ml-auto text-sm text-purple-600 hover:text-purple-700 font-semibold"
+            >
+              {lang === 'zh' ? '← 更换方式' : '← Change Mode'}
+            </button>
           </div>
           
           <div className="space-y-3">
@@ -121,14 +180,6 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
                 </span>
               )}
             </div>
-
-            {/* Dialog Mode Button */}
-            <button
-              onClick={() => setUseDialog(true)}
-              className="w-full px-4 py-3 border-2 border-purple-300 text-purple-600 font-semibold rounded-lg hover:bg-purple-50 transition-colors"
-            >
-              💬 {lang === 'zh' ? '或者用对话框优化创意' : 'Or use dialog to refine your idea'}
-            </button>
           </div>
         </div>
 
@@ -227,7 +278,7 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
                             : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
                         }`}
                       >
-                        <div className="text-2xl mb-2">{style.icon}</div>
+                        <div className="w-12 h-12 rounded-lg mb-2" style={{ backgroundColor: style.color, opacity: 0.2 }}></div>
                         <div className="text-sm font-semibold text-gray-800">
                           {lang === 'zh' ? style.nameZh : style.name}
                         </div>
