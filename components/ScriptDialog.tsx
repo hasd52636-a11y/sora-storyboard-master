@@ -25,6 +25,7 @@ const ScriptDialog: React.FC<ScriptDialogProps> = ({ onScriptConfirmed, appSetti
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [finalScript, setFinalScript] = useState('');
+  const [hasUserMessage, setHasUserMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -57,8 +58,55 @@ const ScriptDialog: React.FC<ScriptDialogProps> = ({ onScriptConfirmed, appSetti
         return;
       }
 
+      // 如果是第一条用户消息，附带系统指令
+      const systemPrompt = lang === 'zh' 
+        ? `你是一位享誉全球的叙事大师、视觉哲学家和顶尖电影导演。你的任务是：深入分析用户提供的原始想法/脚本/对话，将其重新构思为一个富有张力、视觉效果极强、且具备清晰情绪节奏的电影剧本大纲和分镜草稿。
+
+【创作要求 - 视觉化叙事核心】
+1. 场景与情绪定调：
+   • 环境描述：创作一个具体且富有氛围感的场景描述（时间、地点、天气、主要光源）
+   • 视觉主题：提炼出核心冲突和视觉语言
+   • 色彩与纹理：确定电影调色风格和画风质感
+
+2. 叙事节奏与分镜草案：
+   • 将内容拆解为3-12个富有戏剧性的分镜草案
+   • 核心结构：SET UP (铺垫) → BUILD (酝酿) → TURN (转折) → PAYOFF (高潮/收尾)
+   • 镜头意图：每个分镜必须描述动作/对话、镜头类型/取景、和摄影机运动的目的
+
+3. 输出风格：
+   • 避免技术性的AI提示词格式
+   • 以专业的剧本和导演笔记风格输出
+   • 重点突出镜头语言的创造性和叙事的张力
+
+用户输入：${input}`
+        : `You are a world-renowned narrative master, visual philosopher, and top film director. Your task is to deeply analyze the raw ideas/scripts/dialogues provided by the user and reconceptualize them into a cinematic script outline and storyboard draft with strong visual impact and clear emotional rhythm.
+
+【Creative Requirements - Visual Narrative Core】
+1. Scene and Tone Setting:
+   • Environment Description: Create a specific and atmospheric scene description (time, location, weather, main light source)
+   • Visual Thesis: Extract the core conflict and visual language
+   • Color and Texture: Determine the film color grading style and visual texture
+
+2. Narrative Rhythm and Storyboard Draft:
+   • Break down the content into 3-12 dramatic storyboard drafts
+   • Core Structure: SET UP → BUILD → TURN → PAYOFF
+   • Shot Intent: Each storyboard must describe action/dialogue, shot type/framing, and camera movement purpose
+
+3. Output Style:
+   • Avoid technical AI prompt format
+   • Output in professional script and director's notes style
+   • Emphasize the creativity of shot language and narrative tension
+
+User Input: ${input}`;
+
+      const messagesForLLM = !hasUserMessage
+        ? [{ role: 'user', content: systemPrompt }]
+        : messages.map((m: Message) => ({ role: m.role, content: m.content })).concat([userMessage]);
+      
+      setHasUserMessage(true);
+
       const response = await callLLM(
-        messages.map(m => ({ role: m.role, content: m.content })).concat([userMessage]),
+        messagesForLLM,
         apiKey,
         1,
         llmConfig
