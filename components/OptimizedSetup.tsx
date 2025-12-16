@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ProjectConfig, STYLES, Language } from '../types';
+import { ProjectConfig, STYLES, Language, AppSettings } from '../types';
 import { recommendStyle, recommendFrameCount, generateRecommendationSummary, saveUserPreference } from '../services/smartRecommendation';
+import ScriptDialog from './ScriptDialog';
 
 interface OptimizedSetupProps {
   config: ProjectConfig;
@@ -8,6 +9,7 @@ interface OptimizedSetupProps {
   onNext: () => void;
   isLoading: boolean;
   lang: Language;
+  appSettings: AppSettings;
 }
 
 const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
@@ -15,10 +17,12 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
   updateConfig,
   onNext,
   isLoading,
-  lang
+  lang,
+  appSettings
 }) => {
   const [recommendation, setRecommendation] = useState<ReturnType<typeof generateRecommendationSummary> | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [useDialog, setUseDialog] = useState(false);
 
   // 当脚本内容变化时，自动生成推荐
   useEffect(() => {
@@ -40,6 +44,38 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
     onNext();
   };
 
+  const handleScriptConfirmed = (script: string) => {
+    updateConfig({ script });
+    setUseDialog(false);
+    // 自动生成推荐
+    const rec = generateRecommendationSummary(script);
+    setRecommendation(rec);
+    updateConfig({
+      style: rec.style,
+      frameCount: rec.frameCount
+    });
+  };
+
+  if (useDialog) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="mb-6">
+          <button
+            onClick={() => setUseDialog(false)}
+            className="text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-2"
+          >
+            ← {lang === 'zh' ? '返回' : 'Back'}
+          </button>
+        </div>
+        <ScriptDialog
+          onScriptConfirmed={handleScriptConfirmed}
+          appSettings={appSettings}
+          lang={lang}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4">
       {/* Hero Section */}
@@ -48,7 +84,7 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
           ✨ 开始创作你的分镜脚本
         </h1>
         <p className="text-xl text-gray-600">
-          输入故事内容，AI将自动为你生成专业的分镜脚本
+          {lang === 'zh' ? '输入故事内容，AI将自动为你生成专业的分镜脚本' : 'Input your story, AI will generate professional storyboard scripts for you'}
         </p>
       </div>
 
@@ -61,26 +97,38 @@ const OptimizedSetup: React.FC<OptimizedSetupProps> = ({
               1
             </div>
             <h2 className="text-2xl font-bold text-gray-800">
-              📝 输入你的故事脚本
+              📝 {lang === 'zh' ? '输入你的故事脚本' : 'Input Your Story Script'}
             </h2>
           </div>
           
-          <textarea
-            value={config.script}
-            onChange={(e) => updateConfig({ script: e.target.value })}
-            placeholder="在这里输入你的故事内容...&#10;&#10;例如：&#10;一个年轻的宇航员在太空站中醒来，发现自己是唯一的幸存者。他必须找到回家的方法，同时揭开这场灾难的真相..."
-            className="w-full h-48 px-6 py-4 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:outline-none transition-all resize-none text-lg"
-          />
-          
-          <div className="mt-3 flex items-center justify-between text-sm">
-            <span className="text-gray-500">
-              {config.script.length} 字
-            </span>
-            {config.script.length > 0 && (
-              <span className="text-purple-600 font-semibold">
-                ✨ AI正在分析你的内容...
+          <div className="space-y-3">
+            <textarea
+              value={config.script}
+              onChange={(e) => updateConfig({ script: e.target.value })}
+              placeholder={lang === 'zh' 
+                ? "在这里输入你的故事内容...\n\n例如：\n一个年轻的宇航员在太空站中醒来，发现自己是唯一的幸存者。他必须找到回家的方法，同时揭开这场灾难的真相..."
+                : "Input your story content here...\n\nExample:\nA young astronaut wakes up in a space station and discovers he is the only survivor. He must find a way home while uncovering the truth about the disaster..."}
+              className="w-full h-48 px-6 py-4 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:outline-none transition-all resize-none text-lg"
+            />
+            
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">
+                {config.script.length} {lang === 'zh' ? '字' : 'chars'}
               </span>
-            )}
+              {config.script.length > 0 && (
+                <span className="text-purple-600 font-semibold">
+                  ✨ {lang === 'zh' ? 'AI正在分析你的内容...' : 'AI is analyzing your content...'}
+                </span>
+              )}
+            </div>
+
+            {/* Dialog Mode Button */}
+            <button
+              onClick={() => setUseDialog(true)}
+              className="w-full px-4 py-3 border-2 border-purple-300 text-purple-600 font-semibold rounded-lg hover:bg-purple-50 transition-colors"
+            >
+              💬 {lang === 'zh' ? '或者用对话框优化创意' : 'Or use dialog to refine your idea'}
+            </button>
           </div>
         </div>
 

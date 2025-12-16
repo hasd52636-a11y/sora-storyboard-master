@@ -377,6 +377,7 @@ const App: React.FC = () => {
             onNext={startGeneration} 
             isLoading={isLoading}
             lang={appSettings.language}
+            appSettings={appSettings}
           />
         )}
         {currentStep === WorkflowStep.EDITOR && (

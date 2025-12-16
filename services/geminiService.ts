@@ -564,13 +564,12 @@ Strictly follow this structure for each frame:
       '   - **Visual Consistency**: Ensure the main character\'s features remain identical across all visualPrompt fields.',
       '',
       '[JSON SCHEMA]',
-      'Strictly follow this structure for each frame:',
+      'Return ONLY a JSON array with exactly ' + config.frameCount + ' objects. Each object MUST have these exact fields:',
       '{',
-      '  "visualPrompt": "String (ENGLISH ONLY). CAMERA LANGUAGE - How to construct the frame visually. Detailed image generation prompt. Start with: ' + config.style.name + ' style storyboard sketch. Include: (1) Subject appearance with consistent features and SPECIFIC ACTIONS/EXPRESSIONS, (2) Environment details with consistent lighting/color/atmosphere, (3) Composition, framing, and visual elements. Focus on WHAT the frame looks like, not how it moves.",',
-      '  "visualPromptZh": "String (CHINESE ONLY). 相机语言 - 画面怎么构造。包含：(1)角色外观、一致的特征和具体动作/表情，(2)环境细节、光线、色调、氛围，(3)构图、取景和视觉元素。重点是画面看起来怎样，不是怎么动。",',
-      '  "description": "String (ENGLISH ONLY). CINEMATOGRAPHY LANGUAGE - How the frame moves and transitions. Include: (1) Narrative beat (Setup/Build/Climax/Resolution), (2) Camera movements (pan, tilt, zoom, tracking, dolly), (3) Character movements and actions, (4) Environmental changes and transitions to next frame, (5) Temporal progression (e.g., \'continues from previous\', \'moments later\', \'accelerates\'). Focus on HOW the frame moves and connects to the next frame.",',
-      '  "descriptionZh": "String (CHINESE ONLY). 摄像机语言 - 画面怎么动和怎么衔接。包含：(1)叙事节拍（开场/发展/高潮/结局），(2)摄像机运动（平移、倾斜、缩放、跟拍、推拉），(3)角色运动和动作，(4)环境变化和到下一画面的衔接，(5)时间进展（如"继续上一镜头"、"几分钟后"、"加速"）。重点是画面怎么动和怎么连接到下一个画面。",',
-      '  "duration": "Number. Estimated duration in seconds for this shot. Total of all durations should equal ' + config.duration + ' seconds."',
+      '  "visualPrompt": "ENGLISH ONLY. Detailed visual description for image generation. Start with: ' + config.style.name + ' style storyboard. Include character appearance, actions, expressions, environment, lighting, composition. Focus on WHAT the frame looks like.",',
+      '  "visualPromptZh": "CHINESE ONLY. 视觉描述。包含角色外观、动作、表情、环境、光线、构图。重点是画面看起来怎样。",',
+      '  "description": "ENGLISH ONLY. How the frame moves and transitions. Include camera movements (pan, tilt, zoom, tracking, dolly), character movements, environmental changes, temporal progression. Focus on HOW the frame moves.",',
+      '  "descriptionZh": "CHINESE ONLY. 画面怎么动和怎么衔接。包含摄像机运动、角色运动、环境变化、时间进展。"',
       '}'
     ];
     
@@ -1624,26 +1623,27 @@ const mockFrames = (count: number, userScript?: string): Partial<StoryboardFrame
   // 使用传入的脚本或最后保存的脚本
   const script = userScript || lastUserScript || 'scene';
   
-  // 截断脚本到合理长度（用于视觉提示词）
-  const scriptSummary = script.length > 100 ? script.substring(0, 100) + '...' : script;
-  
   console.log('Generating mock frames with script:', { 
     scriptLength: script.length, 
-    summary: scriptSummary,
     count 
   });
   
-  return Array.from({ length: count }).map((_, i) => ({
-    id: 'mock-' + i,
-    number: i + 1,
-    // description: 英文视频提示词 - 不包含用户脚本
-    description: `Scene ${i + 1}: Narrative description and camera direction`,
-    // descriptionZh: 中文视频提示词 - 不包含用户脚本
-    descriptionZh: `第${i + 1}镜：剧情描述和镜头指导`,
-    // visualPrompt: 英文视觉提示词 - 用于生图，包含用户脚本摘要
-    visualPrompt: `Storyboard sketch: ${scriptSummary} - scene ${i + 1}, simple line art style, white background`,
-    // visualPromptZh: 中文视觉描述 - 参考用，包含用户脚本摘要
-    visualPromptZh: `分镜草图：${scriptSummary} - 第${i + 1}镜，简洁线条风格，白色背景`,
-    symbols: []
-  }));
+  // 根据脚本内容生成具体的分镜描述
+  const storyBeats = ['Setup', 'Build', 'Climax', 'Resolution'];
+  
+  return Array.from({ length: count }).map((_, i) => {
+    const beatIndex = Math.min(i, storyBeats.length - 1);
+    const beat = storyBeats[beatIndex];
+    const beatZh = ['铺垫', '发展', '高潮', '结局'][beatIndex];
+    
+    return {
+      id: 'mock-' + i,
+      number: i + 1,
+      visualPrompt: `Storyboard sketch of: ${script}. Scene ${i + 1} (${beat}): Detailed visual composition with characters, environment, lighting, and specific actions. ${beat === 'Setup' ? 'Establish the scene and introduce elements.' : beat === 'Build' ? 'Show progression and development.' : beat === 'Climax' ? 'Peak moment with maximum visual impact.' : 'Conclude with resolution.'}`,
+      visualPromptZh: `分镜草图：${script}。第${i + 1}镜（${beatZh}）：详细的视觉构图，包括角色、环境、光线和具体动作。${beatZh === '铺垫' ? '建立场景并介绍元素。' : beatZh === '发展' ? '展示进展和发展。' : beatZh === '高潮' ? '高峰时刻，视觉冲击力最大。' : '以解决方案结束。'}`,
+      description: `Scene ${i + 1} (${beat}): Camera and character movements. ${beat === 'Setup' ? 'Establish shot with smooth camera movement.' : beat === 'Build' ? 'Dynamic camera work showing progression.' : beat === 'Climax' ? 'Intense camera movements emphasizing action.' : 'Calm camera movements for resolution.'} Transition smoothly to next scene.`,
+      descriptionZh: `第${i + 1}镜（${beatZh}）：摄像机和角色运动。${beatZh === '铺垫' ? '建立镜头，摄像机平稳运动。' : beatZh === '发展' ? '动态摄像机工作显示进展。' : beatZh === '高潮' ? '强烈的摄像机运动强调动作。' : '平静的摄像机运动用于解决。'}平稳过渡到下一个场景。`,
+      symbols: []
+    };
+  });
 };
