@@ -33,9 +33,9 @@ export async function fetchRetry(url: RequestInfo, options?: RequestInit, maxRet
                 throw lastError; 
             } 
 
-            // 指数退避等待 (1s, 2s, 4s, ...) 
-            const delay = Math.pow(2, i) * 1000; 
-            console.warn(`Request failed (${lastError.message}). Retrying in ${delay / 1000}s... (Attempt ${i + 1})`); 
+            // 指数退避等待 
+            const delay = 1000 * Math.pow(2, i); 
+            console.warn(`Request failed (${lastError.message}). Retrying in ${Math.round(delay / 1000)}s... (Attempt ${i + 1}/${maxRetries})`); 
             await new Promise(resolve => setTimeout(resolve, delay)); 
         } 
     } 

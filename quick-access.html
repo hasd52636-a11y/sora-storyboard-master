@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storyboard Master - 快速访问</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 50px;
+            max-width: 800px;
+            width: 100%;
+        }
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 5px solid #10b981;
+        }
+        .status-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .status-card h3::before {
+            content: "✓";
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #10b981;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .btn {
+            display: block;
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn.secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .btn.success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .info-section {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        .info-section h3 {
+            color: #1976d2;
+            margin-bottom: 15px;
+        }
+        .info-list {
+            list-style: none;
+        }
+        .info-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #bbdefb;
+            color: #555;
+        }
+        .info-list li:last-child {
+            border-bottom: none;
+        }
+        .info-list li strong {
+            color: #1976d2;
+            display: inline-block;
+            width: 150px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+            color: #666;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Storyboard Master</h1>
+        <p class="subtitle">AI驱动的分镜脚本生成工具</p>
+
+        <div class="status-card">
+            <h3>开发服务器运行中</h3>
+            <p><strong>地址：</strong> <a href="http://localhost:3001" target="_blank" style="color: #667eea;">http://localhost:3001</a></p>
+            <p><strong>状态：</strong> <span style="color: #10b981;">● 正常运行</span></p>
+            <p><strong>端口：</strong> 3001 (端口3000被占用，已自动切换)</p>
+        </div>
+
+        <div class="button-grid">
+            <a href="http://localhost:3001" target="_blank" class="btn">
+                🚀 打开应用
+            </a>
+            <a href="test-api-endpoints.html" target="_blank" class="btn secondary">
+                🔧 API测试
+            </a>
+            <button onclick="openSettings()" class="btn success">
+                ⚙️ 应用设置
+            </button>
+        </div>
+
+        <div class="info-section">
+            <h3>📋 项目信息</h3>
+            <ul class="info-list">
+                <li><strong>Node.js版本：</strong> v22.15.0</li>
+                <li><strong>npm版本：</strong> 10.9.2</li>
+                <li><strong>Vite版本：</strong> 6.4.1</li>
+                <li><strong>React版本：</strong> 19.2.1</li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h3>🔗 可用的API代理</h3>
+            <ul class="info-list">
+                <li><strong>聊天API：</strong> /api/ai/chat</li>
+                <li><strong>图像API：</strong> /api/ai/image</li>
+                <li><strong>DeepSeek：</strong> /api/deepseek</li>
+                <li><strong>智谱AI：</strong> /api/zhipu</li>
+                <li><strong>硅基流动：</strong> /api/siliconflow</li>
+                <li><strong>速创：</strong> /api/sucreative</li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h3>📚 快速指南</h3>
+            <ul class="info-list">
+                <li>1. 点击"打开应用"访问主界面</li>
+                <li>2. 点击右上角"设置"配置API密钥</li>
+                <li>3. 输入脚本内容并选择视觉风格</li>
+                <li>4. 点击"生成分镜"开始创作</li>
+                <li>5. 使用"API测试"页面诊断问题</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>📧 <a href="mailto:hanjiangstudio@gmail.com">hanjiangstudio@gmail.com</a></p>
+            <p>🌐 <a href="http://hanjiangstudio.com" target="_blank">hanjiangstudio.com</a></p>
+            <p style="margin-top: 10px; font-size: 0.9em;">查看 <a href="DEBUG_GUIDE.md">DEBUG_GUIDE.md</a> 获取更多帮助</p>
+        </div>
+    </div>
+
+    <script>
+        function openSettings() {
+            window.open('http://localhost:3001', '_blank');
+            setTimeout(() => {
+                alert('应用已打开，请点击右上角的"设置"按钮配置API密钥');
+            }, 500);
+        }
+
+        // 检查服务器状态
+        async function checkServerStatus() {
+            try {
+                const response = await fetch('http://localhost:3001');
+                if (response.ok) {
+                    console.log('✓ 服务器运行正常');
+                }
+            } catch (error) {
+                console.error('✗ 服务器连接失败:', error);
+                alert('警告：无法连接到开发服务器\n请确保运行了 npm run dev');
+            }
+        }
+
+        // 页面加载时检查
+        window.onload = checkServerStatus;
+    </script>
+</body>
+</html>

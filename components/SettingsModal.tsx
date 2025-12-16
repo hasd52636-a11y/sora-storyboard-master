@@ -18,25 +18,12 @@ interface ExtendedPreset extends ApiPreset {
 }
 
 const LLM_PRESETS: ExtendedPreset[] = [
-  { id: 'gemini', name: 'Google Gemini (Official)', nameZh: '谷歌 Gemini (官方)', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash', officialUrl: 'https://ai.google.dev/' },
   { id: 'deepseek', name: 'DeepSeek (Official)', nameZh: 'DeepSeek (官方)', provider: 'openai', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat', officialUrl: 'https://www.deepseek.com/' },
   { id: 'zhipu', name: 'Zhipu AI (ChatGLM)', nameZh: '智谱清言 (ChatGLM)', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'glm-4', officialUrl: 'https://open.bigmodel.cn/' },
-  { id: 'qwen', name: 'Qwen / Tongyi (Aliyun)', nameZh: '通义千问 (阿里云)', provider: 'openai', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen-plus', officialUrl: 'https://dashscope.aliyun.com/' },
-  { id: 'moonshot', name: 'Moonshot (Kimi)', nameZh: '月之暗面 (Kimi)', provider: 'openai', baseUrl: 'https://api.moonshot.cn/v1', defaultModel: 'moonshot-v1-8k', officialUrl: 'https://www.moonshot.cn/' },
-  { id: 'doubao', name: 'Doubao (Volcengine)', nameZh: '豆包 (火山引擎)', provider: 'openai', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', defaultModel: 'doubao-pro-32k', officialUrl: 'https://www.doubao.com/' },
-  { id: 'hunyuan', name: 'Hunyuan (Tencent)', nameZh: '腾讯混元', provider: 'openai', baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', defaultModel: 'hunyuan-standard', officialUrl: 'https://cloud.tencent.com/product/hunyuan' },
-  { id: 'siliconflow', name: 'SiliconFlow', nameZh: '硅基流动', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'THUDM/GLM-Z1-9B-0414', officialUrl: 'https://siliconflow.cn/' },
-  { id: 'sucreative-gemini', name: 'SuCreative Gemini', nameZh: '速创 Gemini', provider: 'openai', baseUrl: 'https://api.wuyinkeji.com/api/chat/index', defaultModel: 'gemini-3-pro', officialUrl: 'https://www.wuyinkeji.com/' },
-  { id: 'custom', name: 'Custom / Other', nameZh: '自定义 / 其他', provider: 'openai', baseUrl: '', defaultModel: '' },
 ];
 
 const IMG_PRESETS: ExtendedPreset[] = [
-  { id: 'gemini-img', name: 'Google Gemini Image', nameZh: '谷歌 Gemini 绘图', provider: 'gemini', baseUrl: '', defaultModel: 'gemini-2.5-flash-image', officialUrl: 'https://ai.google.dev/' },
-  { id: 'dalle', name: 'OpenAI DALL-E 3', nameZh: 'OpenAI DALL-E 3', provider: 'openai', baseUrl: 'https://api.openai.com/v1', defaultModel: 'dall-e-3', officialUrl: 'https://platform.openai.com/' },
-  { id: 'silicon-flux', name: 'SiliconFlow (Flux)', nameZh: '硅基流动 (Flux绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'black-forest-labs/FLUX.1-schnell', officialUrl: 'https://siliconflow.cn/' },
-  { id: 'silicon-sd', name: 'SiliconFlow (Stable Diffusion)', nameZh: '硅基流动 (SD绘图)', provider: 'openai', baseUrl: 'https://api.siliconflow.cn/v1', defaultModel: 'stabilityai/stable-diffusion-3-5-large', officialUrl: 'https://siliconflow.cn/' },
-  { id: 'zhipu-img', name: 'Zhipu CogView', nameZh: '智谱 CogView', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'cogview-3', officialUrl: 'https://open.bigmodel.cn/' },
-  { id: 'jimeng', name: 'Jimeng (ByteDance)', nameZh: '即梦 (字节跳动)', provider: 'openai', baseUrl: 'https://api.jimeng.com/v1', defaultModel: 'jimeng-2.0', officialUrl: 'https://jimeng.ai/' },
+  { id: 'zhipu-img', name: 'Zhipu CogView', nameZh: '智谱 CogView', provider: 'openai', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultModel: 'cogview-3-flash', officialUrl: 'https://open.bigmodel.cn/' },
   { id: 'sucreative-nano', name: 'SuCreative NanoBanana', nameZh: '速创 NanoBanana', provider: 'openai', baseUrl: 'https://api.wuyinkeji.com/api/img', defaultModel: 'nano-banana', officialUrl: 'https://www.wuyinkeji.com/' },
   { id: 'custom-img', name: 'Custom / Other', nameZh: '自定义 / 其他', provider: 'openai', baseUrl: '', defaultModel: '' },
 ];
@@ -122,22 +109,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   const isZh = currentLang === 'zh';
   const tr = (key: keyof typeof translations['en']) => t(currentLang, key);
 
-  // 处理配置变化，如果是速创API则自动同步密钥
-  const handleConfigChange = (type: 'llm' | 'image', field: keyof ApiConfig, value: string) => {
+  // 处理配置变化，自动同步相同提供商的密钥
+  const handleConfigChange = (type: 'llm' | 'image', field: keyof ApiConfig, value: string | boolean) => {
     const newSettings = {
       ...localSettings,
       [type]: { ...localSettings[type], [field]: value }
     };
     
-    // 如果修改的是速创API的密钥，自动同步到另一个配置
+    // 如果修改的是密钥，自动同步到使用相同提供商的另一个配置
     if (field === 'apiKey' && value) {
+      const otherType = type === 'llm' ? 'image' : 'llm';
+      const currentProvider = newSettings[type].provider;
+      const otherProvider = newSettings[otherType].provider;
+      
+      // 如果两个配置使用相同的提供商，自动同步密钥
+      if (currentProvider === otherProvider) {
+        newSettings[otherType].apiKey = value as string;
+      }
+      
+      // 特殊处理：速创API
       const isLlmSucreative = newSettings.llm.presetName?.includes('速创') || newSettings.llm.baseUrl?.includes('wuyinkeji.com');
       const isImageSucreative = newSettings.image.presetName?.includes('速创') || newSettings.image.baseUrl?.includes('wuyinkeji.com');
       
       if (type === 'llm' && isLlmSucreative && isImageSucreative) {
-        newSettings.image.apiKey = value;
+        newSettings.image.apiKey = value as string;
       } else if (type === 'image' && isImageSucreative && isLlmSucreative) {
-        newSettings.llm.apiKey = value;
+        newSettings.llm.apiKey = value as string;
       }
     }
     
@@ -312,6 +309,37 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                         className="w-full p-2 text-sm rounded border border-gray-300 focus:border-purple-500 outline-none"
                     />
                 </div>
+                
+                {/* Quality setting - only for image type and CogView-4 models */}
+                {type === 'image' && config.model.includes('cogview-4') && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 mb-1">{tr('apiQuality')}</label>
+                    <select
+                      value={config.quality || 'standard'}
+                      onChange={(e) => handleConfigChange(type, 'quality', e.target.value)}
+                      className="w-full p-2 text-sm rounded border border-gray-300 focus:border-purple-500 outline-none"
+                    >
+                      <option value="standard">{tr('apiQualityStandard')}</option>
+                      <option value="hd">{tr('apiQualityHd')}</option>
+                    </select>
+                  </div>
+                )}
+                
+                {/* Watermark setting - only for image type and Zhipu API */}
+                {type === 'image' && (config.baseUrl?.includes('bigmodel.cn') || config.model?.includes('cogview')) && (
+                  <div className="md:col-span-2 flex items-center">
+                    <input
+                      type="checkbox"
+                      id={`${type}-watermark-enabled`}
+                      checked={config.watermarkEnabled === true}
+                      onChange={(e) => handleConfigChange(type, 'watermarkEnabled', e.target.checked)}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor={`${type}-watermark-enabled`} className="ml-2 block text-xs font-bold text-gray-500">
+                      {tr('apiWatermarkEnabled')}
+                    </label>
+                  </div>
+                )}
                 
                 {config.provider === 'openai' && (
                     <div className="md:col-span-2">

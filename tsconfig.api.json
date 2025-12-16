@@ -3,28 +3,31 @@
     "target": "ES2022",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-    "module": "CommonJS",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "lib": [
-      "ES2022"
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
     ],
     "skipLibCheck": true,
     "types": [
       "node"
     ],
-    "moduleResolution": "node",
     "isolatedModules": true,
     "moduleDetection": "force",
     "allowJs": true,
     "outDir": "./api-dist",
-    "rootDir": "./api",
-    "strict": true,
+    "rootDir": ".",
+    "strict": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "noEmit": false
   },
   "include": [
-    "./api/**/*"
+    "./api/**/*",
+    "./services/**/*"
   ],
   "exclude": [
     "node_modules"

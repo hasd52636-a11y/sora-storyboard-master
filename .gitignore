@@ -26,3 +26,6 @@ api-dist
 
 .vercel
 .env*.local
+
+.vercel
+.env*.local

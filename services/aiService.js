@@ -14,7 +14,7 @@ const detectObjects = async (imageBase64, config) => {
         const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
         const endpoint = '/v1/chat/completions';
         // In production, use the user-provided baseUrl. In development, use a proxy.
-        const isProduction = import.meta.env.PROD;
+        const isProduction = process.env.NODE_ENV === 'production';
         let requestUrl;
         if (isProduction) {
             requestUrl = baseUrl;

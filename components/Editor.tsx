@@ -97,7 +97,7 @@ const PromptCard = ({
                      />
                  ) : (
                      <div className="w-full h-full text-xs text-gray-600 p-2 overflow-y-auto whitespace-pre-wrap break-words custom-scrollbar">
-                         {value || <span className="text-gray-300 italic">No content...</span>}
+                         {(value && value.trim()) ? value : <span className="text-gray-300 italic">No content...</span>}
                      </div>
                  )}
              </div>
@@ -426,17 +426,29 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         setSelectionEnd({ x: 0, y: 0 });
     };
     
-    // 模拟AI抠图功能
+    // 优化后的一键AI抠图功能 - 自动替换原图
     const handleGenerateMask = async () => {
-        if (!config.referenceImage) return;
+        if (!config.referenceImage) {
+            setAlertModalMessage('请先上传参考图片');
+            setShowAlertModal(true);
+            return;
+        }
+        
+        // 检测API类型 - 智谱cogview和速创API是文生图API，不支持真正的抠图功能
+        const isZhipuApi = settings.image.provider === 'zhipu' || settings.image.baseUrl?.includes('bigmodel.cn');
+        const isSucreativeApi = settings.image.provider === 'sucreative' || settings.image.baseUrl?.includes('wuyinkeji.com');
+        
+        if (isZhipuApi || isSucreativeApi) {
+            setAlertModalMessage('当前配置的图像API（智谱cogview/速创）是文生图API，不支持抠图功能。\n\n抠图功能需要支持图像编辑的API，如：\n- OpenAI DALL-E 3 (支持图像编辑)\n- Google Gemini Pro Vision\n- 其他支持图像处理的API\n\n建议：您可以使用第三方抠图工具处理图片后再上传。');
+            setShowAlertModal(true);
+            return;
+        }
         
         setIsGeneratingMask(true);
-        setGeneratedMaskImage(null);
-        setSelectedResult(null);
         
         try {
             // 构建抠图提示词
-            let maskPrompt = `请精确抠出图片中的主要主体，生成透明背景的图片。`;
+            let maskPrompt = `请精确抠出图片中的主要主体，生成透明背景的PNG图片。`;
             
             // 如果用户选择了特定区域或有自动检测结果，添加区域信息
             if (selectedArea || detectedSubjects.length > 0) {
@@ -452,7 +464,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             
             // 根据用户设置选择合适的图像API
             let response;
-            // 检查是否为生产环境
+            // 检查是否为生产环境 - 统一使用代理API
             const isProduction = import.meta.env.PROD;
             
             if (settings.image.provider === 'gemini') {
@@ -589,31 +601,49 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             }
             
             if (maskImageUrl) {
+                // 自动替换原图
+                if (updateConfig) {
+                    updateConfig({ referenceImage: maskImageUrl });
+                }
                 setGeneratedMaskImage(maskImageUrl);
-                setSelectedResult(maskImageUrl);
+                // 显示成功提示
+                setToastMsg('✅ AI抠图完成！已自动替换原图');
+                setTimeout(() => setToastMsg(null), 3000);
             } else {
                 throw new Error('抠图API返回中没有图片数据');
             }
         } catch (error) {
             console.error('生成抠图失败:', error);
-            setAlertModalMessage('生成抠图失败，请重试');
+            setAlertModalMessage('生成抠图失败：' + (error instanceof Error ? error.message : '未知错误'));
             setShowAlertModal(true);
         } finally {
             setIsGeneratingMask(false);
         }
     };
     
-    // 模拟AI生成三视图功能
+    // 优化后的一键AI生成三视图功能 - 自动替换原图
     const handleGenerateViews = async () => {
-        if (!config.referenceImage) return;
+        if (!config.referenceImage) {
+            setAlertModalMessage('请先上传参考图片');
+            setShowAlertModal(true);
+            return;
+        }
+        
+        // 检测API类型 - 智谱cogview和速创API是文生图API，不支持基于参考图生成三视图
+        const isZhipuApi = settings.image.provider === 'zhipu' || settings.image.baseUrl?.includes('bigmodel.cn');
+        const isSucreativeApi = settings.image.provider === 'sucreative' || settings.image.baseUrl?.includes('wuyinkeji.com');
+        
+        if (isZhipuApi || isSucreativeApi) {
+            setAlertModalMessage('当前配置的图像API（智谱cogview/速创）是文生图API，不支持基于参考图生成三视图功能。\n\n三视图功能需要支持图像理解的API，如：\n- Google Gemini Pro Vision\n- OpenAI GPT-4 Vision\n- 其他支持图像理解的API\n\n建议：您可以使用专业的3D建模软件生成三视图。');
+            setShowAlertModal(true);
+            return;
+        }
         
         setIsGeneratingViews(true);
-        setGeneratedViews([]);
-        setSelectedResult(null);
         
         try {
             // 构建三视图生成提示词
-            let viewsPrompt = `请根据提供的图片，生成该物体的三个正交视图：前视图、侧视图和后视图。`;
+            let viewsPrompt = `请根据提供的图片，生成该物体的三个正交视图：前视图、侧视图和后视图。三个视图垂直排列在一张图片中。`;
             
             // 如果用户选择了特定区域，添加区域信息
             if (selectedArea || detectedSubjects.length > 0) {
@@ -629,9 +659,9 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             
             // 根据用户设置选择合适的图像API
             let response;
-            // 检查是否为生产环境
+            // 检查是否为生产环境 - 统一使用代理API
             const isProduction = import.meta.env.PROD;
-
+            
             if (settings.image.provider === 'gemini') {
                 if (isProduction) {
                     // 生产环境使用代理API调用Gemini
@@ -766,15 +796,20 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             }
             
             if (viewsImageUrl) {
-                // 对于三视图，我们只生成一张包含三个视图的图片
+                // 自动替换原图
+                if (updateConfig) {
+                    updateConfig({ referenceImage: viewsImageUrl });
+                }
                 setGeneratedViews([viewsImageUrl]);
-                setSelectedResult(viewsImageUrl);
+                // 显示成功提示
+                setToastMsg('✅ 三视图生成完成！已自动替换原图');
+                setTimeout(() => setToastMsg(null), 3000);
             } else {
                 throw new Error('三视图生成API返回中没有图片数据');
             }
         } catch (error) {
             console.error('生成三视图失败:', error);
-            setAlertModalMessage('生成三视图失败，请重试');
+            setAlertModalMessage('生成三视图失败：' + (error instanceof Error ? error.message : '未知错误'));
             setShowAlertModal(true);
         } finally {
             setIsGeneratingViews(false);
@@ -889,18 +924,23 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
     const activeFrame = newFrames[activeFrameIndex];
     let translatedText = '';
     let translationSuccess = false;
+    
+    // 清除只包含空白的内容
+    const cleanedVal = newVal.trim();
 
     if (type === 'visual') {
       if (field === 'en') {
         // 用户编辑了Visual Prompt (EN)
-        activeFrame.visualPrompt = newVal;
+        activeFrame.visualPrompt = cleanedVal;
         try {
           // 翻译成中文，更新画面描述 (中文)
-          translatedText = await translateText(newVal, 'zh', settings);
-          console.log('Visual EN to ZH translation result:', translatedText);
-          if (translatedText && translatedText !== newVal) {
-            activeFrame.visualPromptZh = translatedText;
-            translationSuccess = true;
+          if (cleanedVal) {
+            translatedText = await translateText(cleanedVal, 'zh', settings);
+            console.log('Visual EN to ZH translation result:', translatedText);
+            if (translatedText && translatedText !== cleanedVal) {
+              activeFrame.visualPromptZh = translatedText;
+              translationSuccess = true;
+            }
           }
         } catch (error) {
           console.error('Visual EN to ZH translation failed:', error);
@@ -912,14 +952,16 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         }
       } else {
         // 用户编辑了画面描述 (中文)
-        activeFrame.visualPromptZh = newVal;
+        activeFrame.visualPromptZh = cleanedVal;
         try {
           // 翻译成英文，更新Visual Prompt (EN)
-          translatedText = await translateText(newVal, 'en', settings);
-          console.log('Visual ZH to EN translation result:', translatedText);
-          if (translatedText && translatedText !== newVal) {
-            activeFrame.visualPrompt = translatedText;
-            translationSuccess = true;
+          if (cleanedVal) {
+            translatedText = await translateText(cleanedVal, 'en', settings);
+            console.log('Visual ZH to EN translation result:', translatedText);
+            if (translatedText && translatedText !== cleanedVal) {
+              activeFrame.visualPrompt = translatedText;
+              translationSuccess = true;
+            }
           }
         } catch (error) {
           console.error('Visual ZH to EN translation failed:', error);
@@ -932,14 +974,16 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
     } else {
       if (field === 'en') {
         // 用户编辑了Video Prompt (EN)
-        activeFrame.description = newVal;
+        activeFrame.description = cleanedVal;
         try {
           // 翻译成中文，更新视频提示词 (中文)
-          translatedText = await translateText(newVal, 'zh', settings);
-          console.log('Video EN to ZH translation result:', translatedText);
-          if (translatedText && translatedText !== newVal) {
-            activeFrame.descriptionZh = translatedText;
-            translationSuccess = true;
+          if (cleanedVal) {
+            translatedText = await translateText(cleanedVal, 'zh', settings);
+            console.log('Video EN to ZH translation result:', translatedText);
+            if (translatedText && translatedText !== cleanedVal) {
+              activeFrame.descriptionZh = translatedText;
+              translationSuccess = true;
+            }
           }
         } catch (error) {
           console.error('Video EN to ZH translation failed:', error);
@@ -950,14 +994,16 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         }
       } else {
         // 用户编辑了视频提示词 (中文)
-        activeFrame.descriptionZh = newVal;
+        activeFrame.descriptionZh = cleanedVal;
         try {
           // 翻译成英文，更新Video Prompt (EN)
-          translatedText = await translateText(newVal, 'en', settings);
-          console.log('Video ZH to EN translation result:', translatedText);
-          if (translatedText && translatedText !== newVal) {
-            activeFrame.description = translatedText;
-            translationSuccess = true;
+          if (cleanedVal) {
+            translatedText = await translateText(cleanedVal, 'en', settings);
+            console.log('Video ZH to EN translation result:', translatedText);
+            if (translatedText && translatedText !== cleanedVal) {
+              activeFrame.description = translatedText;
+              translationSuccess = true;
+            }
           }
         } catch (error) {
           console.error('Video ZH to EN translation failed:', error);
@@ -1196,8 +1242,16 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
         reader.onload = (ev) => {
             if (ev.target?.result) {
                 const newFrames = [...frames];
-                newFrames[frameIndex] = { ...newFrames[frameIndex], imageUrl: ev.target.result as string };
+                newFrames[frameIndex] = { 
+                    ...newFrames[frameIndex], 
+                    imageUrl: ev.target.result as string,
+                    isGenerating: false,
+                    generationError: false
+                };
                 updateFrames(newFrames);
+                // 显示成功提示
+                setToastMsg('图片上传成功！');
+                setTimeout(() => setToastMsg(null), 2000);
             }
         };
         reader.readAsDataURL(e.target.files[0]);
@@ -1305,47 +1359,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                     )}
                 </div>
                 
-                {/* 处理按钮区域 */}
-                {config.referenceImage && (
-                    <div className="flex space-x-2">
-                        <button
-                            onClick={() => {
-                                // 点击抠图按钮时弹窗显示大图
-                                setIsReferenceImageVisible(true);
-                                handleGenerateMask();
-                            }}
-                            disabled={isGeneratingMask || isGeneratingViews}
-                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors ${isGeneratingMask ? 'bg-purple-600 text-white cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
-                        >
-                            {isGeneratingMask ? (
-                                <div className="flex items-center justify-center">
-                                    <div className="animate-spin mr-2 h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
-                                    {t(lang, 'generating')}
-                                </div>
-                            ) : (
-                                t(lang, 'aiMask')
-                            )}
-                        </button>
-                        <button
-                            onClick={() => {
-                                // 点击生成三视图按钮时弹窗显示大图
-                                setIsReferenceImageVisible(true);
-                                handleGenerateViews();
-                            }}
-                            disabled={isGeneratingMask || isGeneratingViews}
-                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors ${isGeneratingViews ? 'bg-purple-600 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                        >
-                            {isGeneratingViews ? (
-                                <div className="flex items-center justify-center">
-                                    <div className="animate-spin mr-2 h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
-                                    {t(lang, 'generating')}
-                                </div>
-                            ) : (
-                                t(lang, 'aiViews')
-                            )}
-                        </button>
-                    </div>
-                )}
+                {/* 抠图和三视图功能已移除 - 当前API不支持图像编辑功能 */}
             </div>
              
              {/* 生成结果显示弹窗 */}
@@ -1510,14 +1524,14 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
             {/* Canvas Area */}
             <div className="glass-panel rounded-2xl p-6 flex items-center justify-center bg-gray-100/50 shadow-inner overflow-hidden" style={{ height: '50vh' }} onClick={handleBgClick}>
                 <div 
-                    className="relative bg-white shadow-2xl transition-all duration-300 group"
+                    className="relative bg-white shadow-2xl transition-all duration-300 group flex items-center justify-center"
                     style={{
                         ...getAspectRatioStyle(),
                         height: 'auto',
-                        width: '75%', // 缩小主图宽度至原来的四分之三
-                        maxHeight: '45vh', // 限制最大高度至原来的四分之三
-                        maxWidth: `calc(100% - 2rem)`, // Ensure dragging padding
-                        margin: '0 auto' // 居中显示
+                        width: '100%',
+                        maxHeight: '50vh',
+                        maxWidth: `calc(100% - 2rem)`,
+                        margin: '0 auto'
                     }}
                     ref={canvasRef}
                     onDrop={handleDrop}
@@ -1529,7 +1543,7 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                     ) : (
                         <img 
                             src={activeFrame.imageUrl || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'} 
-                            className="w-full h-full object-cover select-none pointer-events-none"
+                            className="w-full h-full object-contain select-none pointer-events-none"
                             style={{ filter: 'grayscale(100%) contrast(150%) brightness(110%)' }}
                         />
                     )}
@@ -1707,20 +1721,19 @@ const Editor: React.FC<EditorProps> = ({ frames, updateFrames, config, onNext, o
                                 SC-{(frame.number?.toString() || '00').padStart(2, '0')}
                              </div>
 
-                             {/* FRAME CONTROLS OVERLAY - Redraw & Upload */}
+                             {/* FRAME CONTROLS OVERLAY - Loading Indicator & Upload */}
                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/frame:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); regenerateImage(frame.id); }}
-                                    disabled={frame.isGenerating}
-                                    className={`p-1.5 rounded-full shadow-lg transform transition-all ${frame.isGenerating ? 'bg-purple-400 text-white cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 text-white hover:scale-110'}`}
-                                    title={tr('redraw')}
+                                {/* Loading Indicator - Display only, no click functionality */}
+                                <div 
+                                    className={`p-1.5 rounded-full shadow-lg transform transition-all ${frame.isGenerating ? 'bg-purple-400 text-white' : 'bg-gray-400 text-white opacity-50'}`}
+                                    title={frame.isGenerating ? 'Generating...' : 'Ready'}
                                 >
                                     {frame.isGenerating ? (
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                     ) : (
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                     )}
-                                </button>
+                                </div>
                                 <label className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg transform hover:scale-110 transition-all cursor-pointer" title={tr('upload')}>
                                     <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFrameImageUpload(e, idx)} aria-label={tr('uploadFrameImage')} />
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>

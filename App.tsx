@@ -1,12 +1,14 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WorkflowStep, ProjectConfig, StoryboardFrame, STYLES, AspectRatio, AppSettings, DEFAULT_SETTINGS, CONTACT_INFO, Language } from './types';
-import Setup from './components/Setup';
+import OptimizedSetup from './components/OptimizedSetup';
+import QuickSetupWizard from './components/QuickSetupWizard';
 import Editor from './components/Editor';
 import Export from './components/Export';
 import SettingsModal from './components/SettingsModal';
 import { generateFrames, generateFrameImage, quickDraft } from './services/geminiService';
+import { saveUserPreference } from './services/smartRecommendation';
 import { t } from './locales';
 import CryptoJS from 'crypto-js';
 
@@ -67,15 +69,28 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGlobalLoading, setIsGlobalLoading] = useState(false); // 全局加载状态，用于控制动效
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>(loadSettingsFromStorage());
   const [config, setConfig] = useState<ProjectConfig>({
     script: '',
     style: STYLES[0],
     aspectRatio: AspectRatio.RATIO_16_9,
     duration: 15,
-    frameCount: 4,
+    frameCount: 3,
     useAIoptimization: true,
   });
+  
+  // 追踪用户是否手动修改了frameCount或duration
+  const [userModifiedFrameCount, setUserModifiedFrameCount] = useState(false);
+  const [userModifiedDuration, setUserModifiedDuration] = useState(false);
+
+  // 检查是否需要显示配置向导
+  useEffect(() => {
+    const hasConfigured = localStorage.getItem('appSettings');
+    if (!hasConfigured) {
+      setShowWizard(true);
+    }
+  }, []);
 
   const [frames, setFrames] = useState<StoryboardFrame[]>([]);
   const tr = (key: any) => t(appSettings.language, key);
@@ -85,14 +100,45 @@ const App: React.FC = () => {
   };
 
   const handleConfigUpdate = (updates: Partial<ProjectConfig>) => {
+    // 如果用户修改了frameCount，标记为已手动修改
+    if (updates.frameCount !== undefined) {
+      setUserModifiedFrameCount(true);
+    }
+    // 如果用户修改了duration，标记为已手动修改
+    if (updates.duration !== undefined) {
+      setUserModifiedDuration(true);
+    }
     setConfig(prev => ({ ...prev, ...updates }));
   };
 
   const startGeneration = async () => {
+    // 保存用户偏好
+    saveUserPreference(config.style.name, config.frameCount);
+    
     setIsLoading(true);
     setIsGlobalLoading(true); // 开始生成时显示全局动效
     try {
-      const plan = await generateFrames(config, appSettings);
+      // 如果使用AI创意生成，根据脚本长度动态调整frameCount
+      let generationConfig = config;
+      if (config.useAIoptimization) {
+        // 只有在用户没有修改frameCount和duration时，才根据脚本长度自动计算
+        if (!userModifiedFrameCount && !userModifiedDuration) {
+          const scriptLength = config.script?.length || 0;
+          let autoFrameCount = 3; // 最少3个画面
+          
+          // 根据脚本长度增加镜头数
+          // 每200个字符增加1个镜头
+          if (scriptLength > 200) {
+            autoFrameCount = Math.min(3 + Math.floor((scriptLength - 200) / 200), 16);
+          }
+          
+          generationConfig = { ...config, frameCount: autoFrameCount };
+          setConfig(generationConfig);
+        }
+        // 如果用户修改了frameCount或duration，就完全按用户的设置
+      }
+      
+      const plan = await generateFrames(generationConfig, appSettings);
       
       // Ensure all frames have proper Chinese translations
       const framesWithTranslations = plan.map(p => ({
@@ -133,8 +179,8 @@ const App: React.FC = () => {
           setFrames([...framesWithImages]);
           
           try {
-            // 调用 quickDraft 生成当前分镜的草图
-            const draftResult = await quickDraft(currentFrame.visualPrompt, appSettings.llm.apiKey);
+            // 调用 quickDraft 生成当前分镜的草图，使用完整的settings以获取正确的图片API配置
+            const draftResult = await quickDraft(currentFrame.visualPrompt, appSettings);
             
             framesWithImages[index] = {
               ...framesWithImages[index],
@@ -213,6 +259,28 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 text-gray-800 overflow-x-hidden font-sans">
+      {/* 智能配置向导 */}
+      <QuickSetupWizard
+        isOpen={showWizard}
+        onComplete={(newSettings) => {
+          setAppSettings(newSettings);
+          const settingsToSave = {
+            ...newSettings,
+            llm: {
+              ...newSettings.llm,
+              apiKey: encryptApiKey(newSettings.llm.apiKey)
+            },
+            image: {
+              ...newSettings.image,
+              apiKey: encryptApiKey(newSettings.image.apiKey)
+            }
+          };
+          localStorage.setItem('appSettings', JSON.stringify(settingsToSave));
+          setShowWizard(false);
+        }}
+        onSkip={() => setShowWizard(false)}
+      />
+
       <SettingsModal 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)}
@@ -303,13 +371,12 @@ const App: React.FC = () => {
           </div>
         )}
         {currentStep === WorkflowStep.SETUP && (
-          <Setup 
+          <OptimizedSetup 
             config={config} 
             updateConfig={handleConfigUpdate} 
             onNext={startGeneration} 
             isLoading={isLoading}
             lang={appSettings.language}
-            setCurrentStep={setCurrentStep}
           />
         )}
         {currentStep === WorkflowStep.EDITOR && (

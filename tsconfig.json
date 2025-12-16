@@ -26,7 +26,7 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["./src/**/*", "./components/**/*", "./App.tsx", "./index.tsx"],
+  "include": ["./src/**/*", "./components/**/*", "./services/**/*", "./App.tsx", "./index.tsx"],
   "exclude": ["./api/**/*"]
 }
 

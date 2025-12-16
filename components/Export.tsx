@@ -1,10 +1,10 @@
 
 import React, { useRef, useState } from 'react';
-import domtoimage from 'dom-to-image';
 import { ProjectConfig, StoryboardFrame, SymbolCategory, Language, WorkflowStep } from '../types';
 import SymbolIcon from './SymbolIcon';
 import StepIndicator from './StepIndicator';
 import { t } from '../locales';
+import { downloadStoryboardSheet } from './ExportDownload';
 
 interface ExportProps {
   config: ProjectConfig;
@@ -190,9 +190,9 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
       const scNumber = `SC-${(f.number?.toString() || '00').padStart(2, '0')}`;
       let shotHeader = isZh ? 
         `== ${scNumber} / 脚本${shotNumber} ==\n` + 
-        `[镜头${shotNumber}: 时长${f.duration || '自动'}]` : 
+        `[镜头${shotNumber}: 时长${'自动'}]` : 
         `== ${scNumber} / SCRIPT ${shotNumber} ==\n` + 
-        `[SHOT ${shotNumber}: Duration ${f.duration || 'Auto'}]`;
+        `[SHOT ${shotNumber}: Duration ${'Auto'}]`;
       
       let contentDesc = isZh ? (f.descriptionZh || f.description) : f.description;
       
@@ -387,40 +387,34 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
   };
 
   const handleDownload = async (index: number) => {
-    // 获取页面元素 - 现在直接引用主分镜图区域
     const mainContentElement = sheetRefs.current[index];
     if (!mainContentElement) return;
     
     try {
-      // 获取当前的符号显示状态
-      const currentShowSymbols = showSymbols;
-      
-      // 临时移除最小高度限制，让容器自适应内容
+      // 临时移除最小高度限制
       const originalClassName = mainContentElement.className;
       mainContentElement.className = originalClassName.replace('min-h-[600px]', 'h-auto');
       
-      // 等待React状态更新
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // 等待DOM渲染
+      await new Promise(resolve => setTimeout(resolve, 200));
       
-      // 使用dom-to-image库，只下载主分镜图区域
-      const dataUrl = await domtoimage.toJpeg(mainContentElement as HTMLElement, {
-        quality: 0.95,
-        bgcolor: '#ffffff',
-        width: (mainContentElement as HTMLElement).offsetWidth,
-        height: (mainContentElement as HTMLElement).offsetHeight
-      });
+      // 使用新的下载函数
+      await downloadStoryboardSheet(
+        mainContentElement as HTMLElement,
+        `storyboard-sheet-${index + 1}.png`
+      );
       
       // 恢复原始类名
       mainContentElement.className = originalClassName;
-      
-      // 创建下载链接
-      const link = document.createElement('a');
-      link.download = `storyboard-sheet-${index + 1}.jpg`;
-      link.href = dataUrl;
-      link.click();
     } catch (err) {
-      console.error("Export failed", err);
-      alert("Failed to export image");
+      console.error("Export failed:", err);
+      alert(err instanceof Error ? err.message : "下载失败，请重试");
+      
+      // 确保恢复类名
+      const mainContentElement = sheetRefs.current[index];
+      if (mainContentElement) {
+        mainContentElement.className = mainContentElement.className.replace('h-auto', 'min-h-[600px]');
+      }
     }
   };
 
@@ -556,13 +550,13 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                                     </div>
                                 </div>
 
-                                <div className="flex gap-4 items-stretch">
+                                <div className="flex gap-4 items-stretch" style={{ alignItems: 'stretch' }}>
                                     {/* Reference Image Column */}
                                     {config.referenceImage && (
-                                        <div className="w-1/5 flex-shrink-0 flex flex-col">
-                                            <div className="border-4 border-dashed border-red-500 bg-white relative flex-1">
+                                        <div className="flex-shrink-0 flex flex-col" style={{ width: '20%', minWidth: '150px' }}>
+                                            <div className="border-4 border-dashed border-red-500 bg-white relative flex-1 flex items-center justify-center p-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                  <div className="absolute top-0 left-0 shadow-sm bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 z-10 tracking-widest uppercase rounded-br-sm flex items-center">REF SUBJECT</div>
-                                                <img src={config.referenceImage} className="w-full h-full object-contain block" />
+                                                <img src={config.referenceImage} className="max-w-full max-h-full object-contain block" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                                             </div>
                                         </div>
                                     )}
@@ -579,56 +573,57 @@ const Export: React.FC<ExportProps> = ({ config, frames, onBack, lang, setCurren
                                                     <div key={frame.id} className="flex flex-col break-inside-avoid h-full">
                                                         {/* Frame Box */}
                                                         <div className="border-4 border-blue-600 bg-white relative flex flex-col h-full">
-                                                            {/* Top Labels */}
-                                                            <div className="absolute top-0 left-0 bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 z-10 shadow-sm uppercase tracking-wider flex items-center justify-center rounded-br-sm">
+                                                            {/* Bottom-Left Labels - 左下角夹角处 */}
+                                                            <div className="absolute -bottom-3 -left-3 bg-blue-600 text-white text-[11px] font-black px-2 py-1 z-10 shadow-md uppercase tracking-wider flex items-center justify-center rounded-sm">
                                                                 SC-{frame.number.toString().padStart(2, '0')}
                                                             </div>
 
-                                                            {/* Image Content Container - Fixed 16:9, but flex-grow allows pushing footer down if needed, though we want footer at bottom */}
-                                                            <div className="relative bg-gray-100 overflow-hidden w-full aspect-video flex-shrink-0">
+                                                            {/* Image Content Container - Fixed 16:9, complete display without cropping */}
+                                                            <div className="relative bg-gray-100 overflow-hidden w-full aspect-video flex-shrink-0 flex items-center justify-center">
                                                                 {frame.imageUrl ? (
                                                                     <img 
                                                                         src={frame.imageUrl} 
-                                                                        className="w-full h-full object-cover block" 
+                                                                        className="w-full h-full object-contain block" 
                                                                         style={{ filter: 'grayscale(100%) contrast(120%)' }}
                                                                     />
                                                                 ) : (
                                                                     <div className="w-full h-full flex items-center justify-center text-gray-300">NO IMAGE</div>
                                                                 )}
 
-                                                                {/* OVERLAY SYMBOLS */}
-                                                                {showSymbols && overlaySymbols.map(sym => (
-                                                                    <div
-                                                                        key={sym.id}
-                                                                        className="absolute z-20 pointer-events-none"
-                                                                        style={{
-                                                                            left: `${sym.x}%`,
-                                                                            top: `${sym.y}%`,
-                                                                            width: `${sym.width}%`,
-                                                                            height: `${sym.height}%`,
-                                                                            transform: `rotate(${sym.rotation}deg)`,
-                                                                        }}
-                                                                    >
-                                                                        <SymbolIcon category={sym.category} icon={sym.icon} text={sym.text} />
-                                                                    </div>
-                                                                ))}
+                                                                {/* OVERLAY SYMBOLS - REF符号始终显示，其他符号跟随showSymbols状态 */}
+                                                                {overlaySymbols.map(sym => {
+                                                                    // REF符号始终显示，其他符号跟随showSymbols状态
+                                                                    const isRefSymbol = sym.category === SymbolCategory.REFERENCE;
+                                                                    if (!isRefSymbol && !showSymbols) return null;
+                                                                    
+                                                                    return (
+                                                                        <div
+                                                                            key={sym.id}
+                                                                            className="absolute z-20 pointer-events-none"
+                                                                            style={{
+                                                                                left: `${sym.x}%`,
+                                                                                top: `${sym.y}%`,
+                                                                                width: `${sym.width}%`,
+                                                                                height: `${sym.height}%`,
+                                                                                transform: `rotate(${sym.rotation}deg)`,
+                                                                            }}
+                                                                        >
+                                                                            <SymbolIcon category={sym.category} icon={sym.icon} text={sym.text} />
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
 
-                                                            {/* Bottom Bar: Render Icon + Name. Using flex-grow to ensure equal height alignment in grid if needed, or just min-h */}
-                                                            <div className="bg-gray-50 border-t-2 border-blue-200 min-h-[28px] p-1 flex items-center justify-center flex-grow">
-                                                                {allSymbols.length > 0 && (
-                                                                    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
-                                                                        {allSymbols.map((sym, idx) => (
-                                                                            <div key={idx} className="flex items-center gap-1.5">
-                                                                                <div className="w-4 h-4">
-                                                                                    <SymbolIcon category={sym.category} icon={sym.icon} />
-                                                                                </div>
-                                                                                {/* Use 'tr' to translate symbol name on the sheet footer too if the app lang is Chinese */}
-                                                                                <span className="text-[10px] font-black text-gray-800 uppercase leading-none">{tr(sym.name)}</span>
-                                                                            </div>
-                                                                        ))}
+                                                            {/* Bottom Bar: Render Icon + Name - 靠右对齐 */}
+                                                            <div className="bg-gray-50 border-t-2 border-blue-200 min-h-[28px] p-1 flex items-center justify-end flex-grow" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', paddingRight: '8px' }}>
+                                                                {allSymbols.length > 0 && allSymbols.map((sym, idx) => (
+                                                                    <div key={idx} className="flex items-center gap-1.5" style={{ whiteSpace: 'nowrap' }}>
+                                                                        <div className="w-4 h-4">
+                                                                            <SymbolIcon category={sym.category} icon={sym.icon} />
+                                                                        </div>
+                                                                        <span className="text-[10px] font-black text-gray-800 uppercase leading-none">{tr(sym.name)}</span>
                                                                     </div>
-                                                                )}
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     </div>

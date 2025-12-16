@@ -99,6 +99,10 @@ export const translations = {
     allFramesGenerated: "All Frames Generated",
     aiMask: "AI Remove Background",
     aiViews: "Generate 3D Views",
+    apiQuality: "Quality",
+    apiQualityStandard: "Standard",
+    apiQualityHd: "HD",
+    apiWatermarkEnabled: "Enable Watermark",
     
     // Symbol Categories
     cat_reference: "Reference",
@@ -274,6 +278,10 @@ export const translations = {
     allFramesGenerated: "所有分镜已生成",
     aiMask: "AI抠图",
     aiViews: "生成三视图",
+    apiQuality: "图像质量",
+    apiQualityStandard: "标准质量",
+    apiQualityHd: "高清质量",
+    apiWatermarkEnabled: "启用水印",
 
     // Symbol Categories
     cat_reference: "参考符号",

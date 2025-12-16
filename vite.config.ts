@@ -81,39 +81,39 @@ export default defineConfig(({ mode }) => {
         rewrite: (path) => path.replace(/^\/api\/sucreative/, ''),
         secure: false
       },
-      // AI聊天和图片API现在由Edge函数处理，不再需要代理
-      // '/api/ai/chat': {
-      //   target: 'https://api.siliconflow.cn',
-      //   changeOrigin: true,
-      //   rewrite: (path) => path.replace(/^\/api\/ai\/chat/, '/v1/chat/completions'),
-      //   secure: false,
-      //   configure: (proxy, options) => {
-      //     proxy.on('proxyReq', (proxyReq, req: any, res) => {
-      //       // 将 X-SF-Key 头转换为 Authorization 头
-      //       const xSfKey = req.headers['x-sf-key'];
-      //       if (xSfKey) {
-      //         proxyReq.setHeader('Authorization', `Bearer ${xSfKey}`);
-      //         delete req.headers['x-sf-key'];
-      //       }
-      //     });
-      //   },
-      // },
-      // '/api/ai/image': {
-      //   target: 'https://api.siliconflow.cn',
-      //   changeOrigin: true,
-      //   rewrite: (path) => path.replace(/^\/api\/ai\/image/, '/v1/images/generations'),
-      //   secure: false,
-      //   configure: (proxy, options) => {
-      //     proxy.on('proxyReq', (proxyReq, req: any, res) => {
-      //       // 将 X-SF-Key 头转换为 Authorization 头
-      //       const xSfKey = req.headers['x-sf-key'];
-      //       if (xSfKey) {
-      //         proxyReq.setHeader('Authorization', `Bearer ${xSfKey}`);
-      //         delete req.headers['x-sf-key'];
-      //       }
-      //     });
-      //   },
-      // },
+      // AI聊天API代理配置
+      '/api/ai/chat': {
+        target: 'https://api.siliconflow.cn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/ai\/chat/, '/v1/chat/completions'),
+        secure: false,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req: any, res) => {
+            // 将 X-SF-Key 头转换为 Authorization 头
+            const xSfKey = req.headers['x-sf-key'];
+            if (xSfKey) {
+              proxyReq.setHeader('Authorization', `Bearer ${xSfKey}`);
+              delete req.headers['x-sf-key'];
+            }
+          });
+        },
+      },
+      '/api/ai/image': {
+        target: 'https://api.siliconflow.cn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/ai\/image/, '/v1/images/generations'),
+        secure: false,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req: any, res) => {
+            // 将 X-SF-Key 头转换为 Authorization 头
+            const xSfKey = req.headers['x-sf-key'];
+            if (xSfKey) {
+              proxyReq.setHeader('Authorization', `Bearer ${xSfKey}`);
+              delete req.headers['x-sf-key'];
+            }
+          });
+        },
+      },
       // AI API 代理已移除，使用现有的硅基流动代理
     }
       },

@@ -3,7 +3,7 @@ import { openDB, DBSchema } from 'idb'
 interface MyDB extends DBSchema {
   frames: {
     key: string;
-    value: { url: string; ts: number }
+    value: { key: string; url: string; ts: number }
   }
 }
 

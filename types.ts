@@ -60,6 +60,11 @@ export interface StoryboardFrame {
   symbols: SymbolItem[];
   isGenerating?: boolean;
   generationError?: boolean; // 标记分镜图生成是否失败
+  isDraft?: boolean; // 标记是否为草稿图
+  storyStage?: 'setup' | 'build' | 'climax' | 'resolution'; // Story structure stage
+  timeStart?: number; // Time start in seconds
+  timeEnd?: number; // Time end in seconds
+  progressionIndicator?: string; // Scene progression indicator (e.g., "introduce", "develop", "climax", "resolve")
 }
 
 export interface ProjectConfig {
@@ -73,7 +78,7 @@ export interface ProjectConfig {
 }
 
 export type Language = 'en' | 'zh';
-export type ApiProvider = 'gemini' | 'openai';
+export type ApiProvider = 'gemini' | 'openai' | 'zhipu' | 'siliconflow' | 'sucreative';
 
 export interface ApiConfig {
   provider: ApiProvider;
@@ -81,6 +86,8 @@ export interface ApiConfig {
   baseUrl: string;
   model: string;
   presetName?: string; // To track which preset is used
+  quality?: 'standard' | 'hd'; // 图像生成质量（仅智谱cogview-4-250304支持）
+  watermarkEnabled?: boolean; // 是否添加水印（仅智谱API支持）
 }
 
 export interface ApiPreset {
@@ -102,22 +109,41 @@ export const CONTACT_INFO = {
   web: "www.wboke.com"
 };
 
-export const DEFAULT_SETTINGS: AppSettings = {  language: 'zh', 
+export const DEFAULT_SETTINGS: AppSettings = {
+  language: 'zh', 
   llm: {
-    provider: 'openai',
+    provider: 'zhipu',
     apiKey: '',
-    baseUrl: 'https://api.siliconflow.cn/v1',
-    model: 'THUDM/GLM-Z1-9B-0414',
-    presetName: '硅基流动'
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-4',
+    presetName: '智谱AI'
   },
   image: {
-    provider: 'openai',
+    provider: 'zhipu',
     apiKey: '',
-    baseUrl: 'https://api.siliconflow.cn/v1',
-    model: 'black-forest-labs/FLUX.1-schnell',
-    presetName: '硅基流动 (Flux绘图)'
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'cogview-3',
+    presetName: '智谱AI'
   }
 };
+
+// 智谱图像模型预设
+export const ZHIPU_IMAGE_PRESETS: ApiPreset[] = [
+  {
+    id: 'zhipu-cogview-4',
+    name: '智谱 CogView-4',
+    provider: 'zhipu',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    defaultModel: 'cogview-4-250304'
+  },
+  {
+    id: 'zhipu-cogview-3',
+    name: '智谱 CogView-3 Flash',
+    provider: 'zhipu',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    defaultModel: 'cogview-3-flash'
+  }
+];
 
 export const STYLES: StyleOption[] = [
   { id: 'custom', name: 'Custom Style', nameZh: '自定义风格', color: '#999', description: 'Custom visual style', descriptionZh: '自定义视觉风格' },

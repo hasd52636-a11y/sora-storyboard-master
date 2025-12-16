@@ -20,7 +20,7 @@ export const detectObjects = async (
     const endpoint = '/v1/chat/completions';
     
     // In production, use the user-provided baseUrl. In development, use a proxy.
-    const isProduction = import.meta.env.PROD;
+    const isProduction = process.env.NODE_ENV === 'production';
     let requestUrl: string;
 
     if (isProduction) {
