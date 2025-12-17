@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清除API密钥</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .success {
+            color: green;
+            margin-top: 20px;
+        }
+        .error {
+            color: red;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>清除API密钥</h1>
+    <p>点击下方按钮可以清除浏览器localStorage中存储的所有API密钥和应用设置。</p>
+    <button onclick="clearApiKeys()">清除所有API密钥</button>
+    <div id="result"></div>
+
+    <script>
+        function clearApiKeys() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // 清除与API密钥相关的localStorage项
+                localStorage.removeItem('appSettings');
+                localStorage.removeItem('verifiedList');
+                localStorage.removeItem('apiKeys');
+                localStorage.removeItem('apiSettings');
+                
+                resultDiv.innerHTML = '<div class="success">✅ API密钥已成功清除！请刷新应用页面查看效果。</div>';
+            } catch (error) {
+                console.error('清除API密钥失败:', error);
+                resultDiv.innerHTML = '<div class="error">❌ 清除API密钥失败，请检查浏览器控制台获取详细信息。</div>';
+            }
+        }
+    </script>
+</body>
+</html>

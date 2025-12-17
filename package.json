@@ -3,30 +3,40 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build-api": "tsc --project tsconfig.api.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "ts-node tests/api.test.ts",
+    "test:health": "ts-node -e \"require('./tests/api.test.ts').healthCheck()\"",
+    "deploy": "scripts\\deploy.bat",
+    "deploy:prod": "npm run build && npm run build-api && vercel --prod",
+    "deploy:preview": "npm run build && npm run build-api && vercel"
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
+    "@google/generative-ai": "^0.24.1",
     "crypto-js": "^4.2.0",
     "dom-to-image": "^2.6.0",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.3",
+    "node-fetch": "^3.3.2",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
     "@types/node": "^22.14.0",
+    "@vercel/node": "^3.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.22",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
+    "ts-node": "^10.9.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

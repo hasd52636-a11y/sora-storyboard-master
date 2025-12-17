@@ -163,183 +163,88 @@ export const testApiConnection = async (config: ApiConfig, type: 'llm' | 'image'
        });
        return true;
     } else {
-       // OpenAI Compatible Test
+       // OpenAI Compatible Test - 统一使用代理API
        const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
-
-// 在生产环境中直接使用原始API地址，开发环境使用代理
-       const isProduction = import.meta.env.PROD;
-       let requestUrl: string;
-       
-       if (isProduction) {
-      if (type === 'image') {
-        // 生产环境图片生成使用代理
-        requestUrl = '/api/ai/proxy-image';
-      } else {
-        // 其他生产环境请求直接使用原始API地址
-        requestUrl = baseUrl;
-      }
-    } else {
-         // 开发环境使用代理避免CORS
-         let proxyUrl: string;
-         if (baseUrl.includes('deepseek.com')) {
-           proxyUrl = '/api/deepseek';
-         } else if (baseUrl.includes('openai.com')) {
-           proxyUrl = '/api/openai';
-         } else if (baseUrl.includes('bigmodel.cn')) {
-           proxyUrl = '/api/zhipu';
-         } else if (baseUrl.includes('dashscope.aliyuncs.com')) {
-           proxyUrl = '/api/qwen';
-         } else if (baseUrl.includes('moonshot.cn')) {
-           proxyUrl = '/api/moonshot';
-         } else if (baseUrl.includes('volces.com')) {
-           proxyUrl = '/api/doubao';
-         } else if (baseUrl.includes('hunyuan.cloud.tencent.com')) {
-           proxyUrl = '/api/hunyuan';
-         } else if (baseUrl.includes('siliconflow.cn')) {
-           proxyUrl = '/api/siliconflow';
-         } else if (baseUrl.includes('wuyinkeji.com')) {
-           // 速创API在开发环境下使用代理
-           proxyUrl = '/api/sucreative';
-         } else {
-           proxyUrl = baseUrl;
-         }
-         requestUrl = proxyUrl;
-       }
        
        // 检查是否为速创API
        const isSuCreativeGemini = baseUrl.includes('wuyinkeji.com/api/chat');
        const isSuCreativeImage = baseUrl.includes('wuyinkeji.com/api/img');
        const isSuCreative = isSuCreativeGemini || isSuCreativeImage;
        
-       // 根据API类型选择正确的端点
-       const endpoint = type === 'image' ? '/v1/images/generations' : '/v1/chat/completions';
-       
-       let fullUrl;
-       if (isProduction) {
-         // 生产环境直接构建完整URL
-         if (isSuCreativeGemini) {
-           // 速创Gemini API已经包含完整路径
-           fullUrl = baseUrl;
-         } else if (isSuCreativeImage) {
-           // 速创图片API需要拼接/nanoBanana端点
-           fullUrl = baseUrl + '/nanoBanana';
-         } else {
-           // 检查baseUrl是否已经包含版本号
-           const urlParts = baseUrl.split('/');
-           const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
-           
-           if (versionIndex > -1) {
-             // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
-             const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
-             if (baseUrl.endsWith('/')) {
-               fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
-             } else {
-               fullUrl = baseUrl + endpointPath;
-             }
-           } else {
-             // 如果baseUrl没有版本号，使用完整的endpoint
-             if (baseUrl.endsWith('/')) {
-               fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
-             } else {
-               fullUrl = baseUrl + endpoint;
-             }
-           }
-         }
-       } else {
-         // 开发环境使用代理URL构建
-         if (isSuCreativeGemini) {
-           // 速创Gemini API在开发环境下使用/api/sucreative代理
-           fullUrl = '/api/sucreative';
-         } else if (isSuCreativeImage) {
-          // 速创图片API在开发环境下使用/api/sucreative代理，并拼接/nanoBanana端点
-          fullUrl = '/api/sucreative/api/img/nanoBanana';
-         } else {
-           // 其他API的处理逻辑
-           // 提取原始URL中的路径部分（包括版本号）
-           const urlParts = baseUrl.split('/');
-           const versionIndex = urlParts.findIndex(part => part === 'v1' || part === 'v2');
-           
-           if (versionIndex > -1) {
-             // 如果原始URL包含版本号，提取版本号和之后的路径
-             const versionPath = urlParts.slice(versionIndex).join('/');
-             // 确保不会重复添加版本号
-             const endpointWithoutVersion = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
-             fullUrl = requestUrl + '/' + versionPath + (endpointWithoutVersion.startsWith('/') ? '' : '/') + endpointWithoutVersion.slice(1);
-           } else {
-             // 如果原始URL没有版本号，使用默认的v1版本号
-             fullUrl = requestUrl + endpoint;
-           }
-         }
-       }
-       
-       // 根据端点类型和API提供商构建不同的请求体
-       let requestBody;
-       let headers;
+       // 统一使用代理端点
+       let fullUrl = type === 'image' ? '/api/ai/image' : '/api/ai/chat';
+       let requestBody: any;
        
        if (isSuCreativeGemini) {
-         // 速创Gemini API的特殊处理
-         // 构建请求参数
-         const params = {
-           key: apiKey, // 添加接口密钥参数
-           content: 'Hi',
-           model: config.model || 'gemini-3-pro'
+         // 速创Gemini聊天API
+         fullUrl = '/api/ai/chat';
+         requestBody = {
+           messages: [{role: 'user', content: 'Hi'}],
+           apiConfig: {
+             baseUrl: baseUrl,
+             defaultModel: config.model || 'gemini-3-pro',
+             provider: 'sucreative'
+           }
          };
-         
-         // 生成签名
-         const signature = generateSignature(params, apiKey);
-         
-         headers = {
-           'Content-Type': 'application/x-www-form-urlencoded'
-         };
-         
-         // 添加签名到请求参数
-         requestBody = new URLSearchParams({
-           ...params,
-           sign: signature
-         });
        } else if (isSuCreativeImage) {
-         // 速创图像API的特殊处理
-         headers = {
-           'Content-Type': 'application/json;charset:utf-8;',
-           'Authorization': apiKey
-         };
-         
+         // 速创图片API
+         fullUrl = '/api/ai/image';
          requestBody = {
            prompt: 'A simple test image',
            aspectRatio: '1:1',
-           model: config.model || 'nano-banana'
+           imageSize: '1K',
+           model: config.model || 'nano-banana',
+           apiConfig: {
+             baseUrl: baseUrl,
+             defaultModel: config.model || 'nano-banana',
+             provider: 'sucreative'
+           }
          };
-       } else {
-         // 其他API的标准处理
-         headers = {
-           'Content-Type': 'application/json',
-           'Authorization': 'Bearer ' + apiKey
-         };
-         requestBody = type === 'image' ? {
+       } else if (type === 'image') {
+         // 其他图片API
+         const isCogView = config.model?.includes('cogview');
+         requestBody = {
            model: config.model,
            prompt: 'A simple test image',
            n: 1,
-           size: '256x256'
-         } : {
-           model: config.model,
-           messages: [{role: 'user', content: 'Hi'}]
+           size: isCogView ? '1024x1024' : '512x512',
+           ...(isCogView ? { user_id: 'storyboard-user' } : {}),
+           apiConfig: {
+             baseUrl: baseUrl,
+             defaultModel: config.model,
+             provider: baseUrl.includes('bigmodel.cn') ? 'zhipu' : 'openai'
+           }
+         };
+       } else {
+         // 聊天API
+         requestBody = {
+           messages: [{role: 'user', content: 'Hi'}],
+           apiConfig: {
+             baseUrl: baseUrl,
+             defaultModel: config.model,
+             provider: baseUrl.includes('bigmodel.cn') ? 'zhipu' : 'openai'
+           }
          };
        }
+       
+
        
        console.log('API Test Details:', {
          provider: config.provider,
          type: type,
          baseUrl: baseUrl,
-         isProduction: isProduction,
-         requestUrl: requestUrl,
          fullUrl: fullUrl,
          requestBody: requestBody
        });
        
+       // 使用统一的代理API进行测试
        const res = await fetch(fullUrl, {
          method: 'POST',
-         headers: headers,
-         body: isSuCreativeGemini ? requestBody.toString() : JSON.stringify(requestBody)
+         headers: {
+           'Content-Type': 'application/json',
+           'X-SF-Key': apiKey
+         },
+         body: JSON.stringify(requestBody)
        });
        
        console.log('API Test Response:', {
@@ -412,96 +317,29 @@ export const translateText = async (
       console.log('Using other LLM provider for translation:', llmConfig.provider);
       const baseUrl = llmConfig.baseUrl || 'https://api.openai.com/v1';
       
-      // 使用代理避免CORS
-      let proxyUrl: string;
-      if (baseUrl.includes('deepseek.com')) {
-        proxyUrl = '/api/deepseek';
-      } else if (baseUrl.includes('openai.com')) {
-        proxyUrl = '/api/openai';
-      } else if (baseUrl.includes('bigmodel.cn')) {
-        proxyUrl = '/api/zhipu';
-      } else if (baseUrl.includes('dashscope.aliyuncs.com')) {
-        proxyUrl = '/api/qwen';
-      } else if (baseUrl.includes('moonshot.cn')) {
-        proxyUrl = '/api/moonshot';
-      } else if (baseUrl.includes('volces.com')) {
-        proxyUrl = '/api/doubao';
-      } else if (baseUrl.includes('hunyuan.cloud.tencent.com')) {
-        proxyUrl = '/api/hunyuan';
-      } else if (baseUrl.includes('siliconflow.cn')) {
-        proxyUrl = '/api/siliconflow';
-      } else {
-        proxyUrl = baseUrl;
-      }
-      
-      // 构建完整路径，确保代理后仍然包含版本号，硅基流动需要/v1版本号
-      const endpoint = '/v1/chat/completions';
-      
-      let fullUrl;
-      if (isProduction) {
-        // 生产环境直接构建完整URL
-        // 检查baseUrl是否已经包含版本号
-        const urlParts = baseUrl.split('/');
-        const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
-        
-        if (versionIndex > -1) {
-          // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
-          const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
-          if (baseUrl.endsWith('/')) {
-            fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
-          } else {
-            fullUrl = baseUrl + endpointPath;
-          }
-        } else {
-          // 如果baseUrl没有版本号，使用完整的endpoint
-          if (baseUrl.endsWith('/')) {
-            fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
-          } else {
-            fullUrl = baseUrl + endpoint;
-          }
-        }
-      } else {
-        // 开发环境使用代理URL构建
-        // 提取原始URL中的路径部分（包括版本号）
-        const urlParts = baseUrl.split('/');
-        const versionIndex = urlParts.findIndex(part => part === 'v1' || part === 'v2');
-        
-        if (versionIndex > -1) {
-          // 如果原始URL包含版本号，提取版本号和之后的路径
-          const versionPath = urlParts.slice(versionIndex).join('/');
-          fullUrl = proxyUrl + '/' + versionPath + (endpoint.startsWith('/') ? '' : '/') + endpoint.substring(3); // 去掉开头的/v1
-        } else {
-          // 如果原始URL没有版本号，使用默认的v1版本号
-          fullUrl = proxyUrl + '/v1' + endpoint;
-        }
-      }
+      // 统一使用代理API
+      const fullUrl = '/api/ai/chat';
       
       console.log('Translation API request:', {
         url: fullUrl,
-        method: 'POST',
-        headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey.substring(0, 10) + '...' // 只显示API密钥的前10个字符
-      },
-        body: JSON.stringify({
-          model: llmConfig.model,
-          messages: [{role: 'user', content: prompt}],
-          max_tokens: 500,
-          temperature: 0.1
-        })
+        method: 'POST'
       });
       
       const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
+          'Content-Type': 'application/json',
+          'X-SF-Key': apiKey
+        },
         body: JSON.stringify({
-          model: llmConfig.model,
           messages: [{role: 'user', content: prompt}],
           max_tokens: 500,
-          temperature: 0.1
+          temperature: 0.1,
+          apiConfig: {
+            baseUrl: baseUrl,
+            defaultModel: llmConfig.model,
+            provider: llmConfig.provider
+          }
         })
       });
       
@@ -596,23 +434,35 @@ export const generateFrames = async (
   const llmConfig = settings.llm;
   const apiKey = getApiKey(llmConfig);
 
-  // 仅在开发环境输出调试日志
-  if (!import.meta.env.PROD) {
-    console.log("AI创意优化状态:", config.useAIoptimization);
-    console.log("脚本内容:", config.script);
-    console.log("是否为结构化脚本:", isStructuredScript(config.script));
-  }
+  // 生产环境也输出关键日志，帮助诊断问题
+  console.log("=== generateFrames called ===");
+  console.log("AI创意优化状态:", config.useAIoptimization);
+  console.log("脚本内容长度:", config.script?.length);
+  console.log("是否为结构化脚本:", isStructuredScript(config.script));
+  console.log("LLM配置:", {
+    provider: llmConfig.provider,
+    model: llmConfig.model,
+    baseUrl: llmConfig.baseUrl,
+    hasApiKey: !!apiKey,
+    apiKeyLength: apiKey?.length || 0
+  });
 
   // 处理结构化脚本
   if (!config.useAIoptimization && isStructuredScript(config.script)) {
+    console.log("处理结构化脚本");
     const frames = splitStructuredScript(config.script, settings);
     return config.frameCount > 0 ? frames.slice(0, config.frameCount) : frames;
-  } else if (!config.useAIoptimization && !import.meta.env.PROD) {
+  } else if (!config.useAIoptimization && process.env.NODE_ENV !== 'production') {
     console.log("取消了AI创意优化，但脚本不是结构化的");
   }
 
   if (!apiKey) {
-    console.warn("No API Key found, using mock data based on user input");
+    console.warn("❌ No API Key found, using mock data based on user input");
+    console.warn("API Key source check:", {
+      fromConfig: !!llmConfig.apiKey,
+      fromEnv: !!ENV_API_KEY,
+      configValue: llmConfig.apiKey ? llmConfig.apiKey.substring(0, 10) + '...' : 'empty'
+    });
     // 基于用户输入生成mock数据，而不是使用完全无关的mock数据
     const userInput = config.script || "story scene";
     return Array.from({ length: config.frameCount }, (_, i) => ({
@@ -624,6 +474,8 @@ export const generateFrames = async (
       visualPromptZh: `${config.style.nameZh}风格分镜草图：${userInput} - 第${i + 1}镜`
     }));
   }
+  
+  console.log("✅ API Key found, proceeding with LLM call");
 
   // Optimized System Prompt with "Analyze-Optimize-Verify" logic
   const styleName = settings.language === 'zh' ? config.style.nameZh : config.style.name;
@@ -648,15 +500,16 @@ ${aiCreativePrompt}
 [OUTPUT CONSTRAINTS]
    - Return ONLY a raw JSON Array. No Markdown blocks, no introductory text.
    - The array must contain exactly ${config.frameCount} objects.
+   - **LANGUAGE REQUIREMENT**: visualPrompt and description MUST be in ENGLISH. visualPromptZh and descriptionZh MUST be in CHINESE.
    - **Visual Consistency**: Ensure the main character's features remain identical across all visualPrompt fields.
 
 [JSON SCHEMA]
 Strictly follow this structure for each frame:
 {
-  "visualPrompt": "String (English). Detailed image generation prompt. Start with: ${config.style.name} style storyboard sketch...",
-  "visualPromptZh": "String (Chinese). 对应英文的中文视觉描述。",
-  "description": "String (English). Concise technical instruction for motion.",
-  "descriptionZh": "String (Chinese). 简练的导演指令。"
+  "visualPrompt": "String (ENGLISH ONLY). Detailed image generation prompt for AI image generation. Must be in English. Start with: ${config.style.name} style storyboard sketch...",
+  "visualPromptZh": "String (CHINESE ONLY). 对应英文的中文视觉描述。必须是中文。",
+  "description": "String (ENGLISH ONLY). Concise technical instruction for motion. Must be in English.",
+  "descriptionZh": "String (CHINESE ONLY). 简练的导演指令。必须是中文。"
 }
 `;
   } else {
@@ -681,15 +534,16 @@ Strictly follow this structure for each frame:
       '[OUTPUT CONSTRAINTS]',
       '   - Return ONLY a raw JSON Array. No Markdown blocks, no introductory text.',
       '   - The array must contain exactly ' + config.frameCount + ' objects.',
+      '   - **LANGUAGE REQUIREMENT**: visualPrompt and description MUST be in ENGLISH. visualPromptZh and descriptionZh MUST be in CHINESE.',
       '   - **Visual Consistency**: Ensure the main character\'s features remain identical across all visualPrompt fields.',
       '',
       '[JSON SCHEMA]',
       'Strictly follow this structure for each frame:',
       '{',
-      '  "visualPrompt": "String (English). Detailed image generation prompt. Start with: ' + config.style.name + ' style storyboard sketch...",',
-      '  "visualPromptZh": "String (Chinese). 对应英文的中文视觉描述。",',
-      '  "description": "String (English). Concise technical instruction for motion.",',
-      '  "descriptionZh": "String (Chinese). 简练的导演指令。"',
+      '  "visualPrompt": "String (ENGLISH ONLY). Detailed image generation prompt for AI image generation. Must be in English. Start with: ' + config.style.name + ' style storyboard sketch...",',
+      '  "visualPromptZh": "String (CHINESE ONLY). 对应英文的中文视觉描述。必须是中文。",',
+      '  "description": "String (ENGLISH ONLY). Concise technical instruction for motion. Must be in English.",',
+      '  "descriptionZh": "String (CHINESE ONLY). 简练的导演指令。必须是中文。"',
       '}'
     ];
     
@@ -701,42 +555,172 @@ Strictly follow this structure for each frame:
     try {
       // 使用新的callLLM函数替代原有API调用
       const messages = [{ role: 'user', content: prompt }];
-      const response = await callLLM(messages, apiKey, config.frameCount, llmConfig);
+      console.log('Calling LLM with config:', { 
+        provider: llmConfig.provider, 
+        model: llmConfig.model,
+        baseUrl: llmConfig.baseUrl,
+        hasApiKey: !!apiKey
+      });
+      
+      let response;
+      try {
+        response = await callLLM(messages, apiKey, config.frameCount, llmConfig);
+      } catch (apiError) {
+        const errorMsg = apiError instanceof Error ? apiError.message : String(apiError);
+        console.error("LLM API call failed:", errorMsg);
+        console.warn("Falling back to mockFrames due to API error:", errorMsg);
+        lastUserScript = config.script || '';
+        return mockFrames(config.frameCount, config.script);
+      }
+      
+      console.log('LLM Response received:', { hasChoices: !!response.choices, hasContent: !!response.choices?.[0]?.message?.content });
       
       // 解析响应并映射到StoryboardFrame数组
       if (response.choices && response.choices[0]?.message?.content) {
-        const content = response.choices[0].message.content;
+        let content = response.choices[0].message.content;
+        console.log('LLM Content length:', content.length, 'First 100 chars:', content.substring(0, 100));
+        
+        // 尝试从响应中提取JSON数组
+        // 有些LLM会在JSON前后添加markdown代码块或其他文本
+        let jsonContent = content;
+        
+        // 尝试提取```json ... ```中的内容
+        const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonBlockMatch) {
+          jsonContent = jsonBlockMatch[1].trim();
+        }
+        
+        // 尝试提取[ ... ]中的内容
+        if (!jsonContent.startsWith('[')) {
+          const arrayMatch = content.match(/\[[\s\S]*\]/);
+          if (arrayMatch) {
+            jsonContent = arrayMatch[0];
+          }
+        }
+        
         // 尝试解析JSON响应
         try {
-          const frames = JSON.parse(content);
-          return frames.map((frame: any, index: number) => ({
-            id: index.toString(),
-            number: index + 1, // 添加帧编号
-            visualPrompt: frame.visualPrompt || frame.description,
-            visualPromptZh: frame.visualPromptZh,
-            description: frame.description || frame.visualPrompt,
-            descriptionZh: frame.descriptionZh
-          }));
+          const frames = JSON.parse(jsonContent);
+          if (Array.isArray(frames) && frames.length > 0) {
+            console.log('✅ Successfully parsed LLM response with', frames.length, 'frames');
+            return frames.map((frame: any, index: number) => {
+              // 确保所有4个字段都有值 - 严格按照字段对应关系
+              // visualPrompt: 英文视觉提示词 (用于生图)
+              // visualPromptZh: 中文视觉描述 (用于参考)
+              // description: 英文视频提示词 (用于视频生成)
+              // descriptionZh: 中文视频提示词 (用于视频生成)
+              
+              // 使用 LLM 返回的值，如果缺失则使用默认值
+              const visualPrompt = frame.visualPrompt || 
+                `${config.style.name} style storyboard sketch for scene ${index + 1}, simple line art, white background`;
+              
+              const visualPromptZh = frame.visualPromptZh || 
+                `${config.style.nameZh}风格分镜草图 - 第${index + 1}镜，简洁线条，白色背景`;
+              
+              const description = frame.description || 
+                `Scene ${index + 1}: Narrative description and camera direction`;
+              
+              const descriptionZh = frame.descriptionZh || 
+                `第${index + 1}镜：剧情描述和镜头指导`;
+              
+              return {
+                id: index.toString(),
+                number: index + 1,
+                visualPrompt,
+                visualPromptZh,
+                description,
+                descriptionZh
+              };
+            });
+          }
         } catch (jsonError) {
-          // 如果不是JSON格式，尝试解析结构化文本
-          console.warn("JSON parse failed, trying text parsing:", jsonError);
-          return mapToFrames([{ content }]);
+          console.warn("JSON parse failed:", jsonError, "Content:", content.substring(0, 200));
         }
+        
+        // 如果JSON解析失败，使用 mockFrames 生成默认分镜
+        console.warn("Using mockFrames due to JSON parse failure");
+        lastUserScript = config.script || '';
+        return mockFrames(config.frameCount, config.script);
       }
-      return mockFrames(config.frameCount);
+      // 保存用户脚本用于 mockFrames
+      console.warn("No content in LLM response, using mockFrames");
+      lastUserScript = config.script || '';
+      return mockFrames(config.frameCount, config.script);
     } catch (error) {
       console.error("Plan Generation Error:", error);
-      return mockFrames(config.frameCount);
+      // 保存用户脚本用于 mockFrames
+      lastUserScript = config.script || '';
+      return mockFrames(config.frameCount, config.script);
     }
   };
 
+  // 保存用户脚本用于后续可能的 mockFrames 调用
+  lastUserScript = config.script || '';
+  
   // 将请求添加到队列中
   return requestQueue.addRequest(makeApiRequest);
-};
+}
 
-// 极简主义提示词，令牌数减少45%，加速响应
- export const buildPrompt = (content: string) => 
-   `${content}, line drawing, storyboard, minimalistic, clean white background, monochrome, no shading, no details, no color, 1bit`
+// 根据选择的风格生成相应的提示词
+export const buildPrompt = (content: string, styleName: string = '') => {
+  // 基础提示词
+  let stylePrompt = '';
+  
+  // 根据风格名称添加相应的风格描述
+  switch (styleName.toLowerCase()) {
+    case 'custom':
+      stylePrompt = 'custom style';
+      break;
+    case 'scifi':
+    case '科幻未来':
+      stylePrompt = 'futuristic, clean lines, neon accents, sci-fi style';
+      break;
+    case 'cyberpunk':
+    case '赛博朋克':
+      stylePrompt = 'high contrast, gritty, tech elements, cyberpunk style';
+      break;
+    case 'ink':
+    case '水墨国风':
+      stylePrompt = 'traditional Asian ink style, fluid, ink wash';
+      break;
+    case 'anime':
+    case '日系动漫':
+      stylePrompt = 'anime style, expressive, dynamic angles';
+      break;
+    case 'noir':
+    case '黑白电影':
+      stylePrompt = 'film noir, heavy shadows, high contrast black and white';
+      break;
+    case 'sketch':
+    case '极简素描':
+      stylePrompt = 'minimal sketch, rough pencil, loose lines';
+      break;
+    case 'clay':
+    case '粘土风格':
+      stylePrompt = 'claymation style, plasticine texture, stop motion look';
+      break;
+    case 'lego':
+    case '乐高积木':
+      stylePrompt = 'voxel art, 3D blocks, lego style';
+      break;
+    case 'steampunk':
+    case '蒸汽朋克':
+      stylePrompt = 'steampunk style, brass, gears, victorian retro';
+      break;
+    case 'vangogh':
+    case '梵高抽象':
+      stylePrompt = 'van gogh style, oil painting, swirling strokes';
+      break;
+    default:
+      // 默认使用极简线稿风格 - 强调细线条，禁止大块黑色
+      stylePrompt = 'simple line art, thin pencil sketch, very fine outlines only, pure white background, no fill, no shading, no solid areas, minimal strokes, sparse lines';
+  }
+  
+  // 强制添加严格的线稿约束，避免大块黑色
+  const lineArtConstraint = ', CRITICAL: thin line drawing ONLY, absolutely NO black fill, NO solid black areas, pure white background, sketch style, outline only, NO heavy shadows, NO dark areas, minimal strokes, sparse lines, light gray lines maximum';
+  
+  return `${content}, storyboard, ${stylePrompt}${lineArtConstraint}`;
+}
 
 // 新的LLM请求函数，使用相对路径指向边缘函数
 export async function callLLM(messages: any[], userKey: string, frameCount?: number, llmConfig?: ApiConfig) {
@@ -759,7 +743,7 @@ export async function callLLM(messages: any[], userKey: string, frameCount?: num
       const signature = generateSignature(params, userKey);
       
       // 确定请求URL，开发环境使用代理
-      const isProduction = import.meta.env.PROD;
+      const isProduction = process.env.NODE_ENV === 'production';
       let requestUrl;
       
       if (isProduction) {
@@ -781,140 +765,177 @@ export async function callLLM(messages: any[], userKey: string, frameCount?: num
         }).toString()
       });
       
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Sucreative API Error:', { status: res.status, error: errorText });
+        throw new Error(`Sucreative API Error: ${res.status} - ${errorText}`);
+      }
+      
       const data = await res.json();
+      console.log('Sucreative API Response:', { hasData: !!data.data, dataLength: data.data?.length });
       
       // 将速创API的响应转换为标准格式
+      if (!data.data) {
+        console.warn('Sucreative API returned empty data');
+        throw new Error('Sucreative API returned empty data');
+      }
+      
       return {
         choices: [{
           message: {
-            content: data.data || '[]'
+            content: data.data
           }
         }]
       };
     } else {
-      // 处理其他OpenAI兼容API的请求
-      const prompt = messages.find(msg => msg.role === 'user')?.content || '';
-      const baseUrl = llmConfig?.baseUrl || 'https://api.openai.com/v1';
+      // 处理其他OpenAI兼容API的请求，统一使用我们的本地API端点
+      console.log('Calling LLM API with config:', { 
+        provider: llmConfig.provider, 
+        model: llmConfig.model,
+        baseUrl: llmConfig.baseUrl,
+        hasUserKey: !!userKey,
+        userKeyLength: userKey?.length || 0,
+        messagesCount: messages.length,
+        firstMessageLength: messages[0]?.content?.length || 0
+      });
       
-      // 在生产环境中直接使用原始API地址，开发环境使用代理
-      const isProduction = import.meta.env.PROD;
-      let requestUrl: string;
-      
-      if (isProduction) {
-        // 生产环境直接使用原始API地址
-        requestUrl = baseUrl;
-      } else {
-        // 开发环境使用代理避免CORS
-        let proxyUrl: string;
-        if (baseUrl.includes('deepseek.com')) {
-          proxyUrl = '/api/deepseek';
-        } else if (baseUrl.includes('openai.com')) {
-          proxyUrl = '/api/openai';
-        } else if (baseUrl.includes('bigmodel.cn')) {
-          proxyUrl = '/api/zhipu';
-        } else if (baseUrl.includes('dashscope.aliyuncs.com')) {
-          proxyUrl = '/api/qwen';
-        } else if (baseUrl.includes('moonshot.cn')) {
-          proxyUrl = '/api/moonshot';
-        } else if (baseUrl.includes('volces.com')) {
-          proxyUrl = '/api/doubao';
-        } else if (baseUrl.includes('hunyuan.cloud.tencent.com')) {
-          proxyUrl = '/api/hunyuan';
-        } else if (baseUrl.includes('siliconflow.cn')) {
-          proxyUrl = '/api/siliconflow';
-        } else {
-          proxyUrl = baseUrl;
-        }
-        requestUrl = proxyUrl;
-      }
-      
-      // 对于不包含版本号的API，添加v1版本号
-      const endpoint = '/v1/chat/completions';
-      
-      let fullUrl;
-      if (isProduction) {
-        // 生产环境直接构建完整URL
-        // 检查baseUrl是否已经包含版本号
-        const urlParts = baseUrl.split('/');
-        const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
-        
-        if (versionIndex > -1) {
-          // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
-          const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
-          if (baseUrl.endsWith('/')) {
-            fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
-          } else {
-            fullUrl = baseUrl + endpointPath;
-          }
-        } else {
-          // 如果baseUrl没有版本号，使用完整的endpoint
-          if (baseUrl.endsWith('/')) {
-            fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
-          } else {
-            fullUrl = baseUrl + endpoint;
-          }
-        }
-      } else {
-        // 开发环境使用代理URL构建
-        // 提取原始URL中的路径部分（包括版本号）
-        const urlParts = baseUrl.split('/');
-        const versionIndex = urlParts.findIndex(part => part === 'v1' || part === 'v2');
-        
-        if (versionIndex > -1) {
-          // 如果原始URL包含版本号，提取版本号和之后的路径
-          const versionPath = urlParts.slice(versionIndex).join('/');
-          fullUrl = requestUrl + '/' + versionPath + (endpoint.startsWith('/') ? '' : '/') + endpoint;
-        } else {
-          // 如果原始URL没有版本号，使用默认的v1版本号
-          fullUrl = requestUrl + '/v1' + endpoint;
-        }
-      }
-      
-      // 根据不同API提供商构建请求体
-      const requestBody: any = {
-        model: llmConfig?.model,
-        messages: messages
+      const requestBody = {
+        messages: messages,
+        frameCount: frameCount,
+        apiConfig: llmConfig
       };
       
-      // 只有当不是硅基流动API时，才添加response_format参数
-      if (!baseUrl.includes('siliconflow.cn')) {
-        requestBody.response_format = { type: "json_object" };
-      }
+      console.log('LLM API Request body size:', JSON.stringify(requestBody).length, 'bytes');
       
-      const response = await fetchRetry(fullUrl, {
+      const response = await fetchRetry('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + userKey
+          'X-SF-Key': userKey
         },
         body: JSON.stringify(requestBody)
       });
       
+      console.log('LLM API Response status:', response.status, 'statusText:', response.statusText);
+      
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('LLM API Error Response:', { 
+          status: response.status, 
+          statusText: response.statusText,
+          error: errorText 
+        });
         throw new Error('API Error: ' + response.status + ' - ' + errorText);
       }
       
-      return response.json();
+      const data = await response.json();
+      console.log('LLM API Response data:', { 
+        hasChoices: !!data.choices,
+        hasContent: !!data.choices?.[0]?.message?.content,
+        contentLength: data.choices?.[0]?.message?.content?.length,
+        hasError: !!data.error
+      });
+      
+      // 检查响应中是否包含错误信息
+      if (data.error) {
+        console.error('LLM API returned error in response body:', data.error);
+        throw new Error('LLM API Error: ' + (typeof data.error === 'string' ? data.error : JSON.stringify(data.error)));
+      }
+      
+      // 检查响应是否包含有效的choices数据
+      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        console.error('LLM API returned invalid response structure:', data);
+        throw new Error('LLM API returned invalid response structure: no choices found');
+      }
+      
+      return data;
     }
 }
 
 // 实现图片快速草稿模式
-export async function quickDraft(prompt: string, userKey: string) {
+export async function quickDraft(prompt: string, settings: AppSettings) {
+  const imgConfig = settings.image;
+  const apiKey = getApiKey(imgConfig);
+  
+  // 强制使用付费通道，必须提供API密钥
+  if (!apiKey) {
+    throw new Error('API密钥不能为空，请在设置中配置您的API密钥');
+  }
+  
+  // 构建提示词 - 强调简洁线条，避免大面积黑色填充，确保内容在画面内
+  const apiPrompt = `${prompt}, CRITICAL: thin line art sketch ONLY, light gray or black outlines ONLY, pure white background, absolutely NO fill, NO shading, NO solid black areas, NO dark areas, minimal strokes, storyboard style, clean and sparse lines, full body in frame, centered composition, all elements fully visible within frame boundaries, no cropping, light sketch style`;
+  
+  // 根据用户配置的API提供商选择不同的处理方式
+  let requestBody: any;
+  
+  // 检测API类型
+  const isZhipuApi = imgConfig.provider === 'zhipu' || imgConfig.baseUrl?.includes('bigmodel.cn') || imgConfig.model?.includes('cogview');
+  const isSucreativeApi = imgConfig.provider === 'sucreative' || imgConfig.baseUrl?.includes('wuyinkeji.com') || imgConfig.model?.includes('nano-banana');
+  
+  if (isSucreativeApi) {
+    // 速创API
+    requestBody = {
+      prompt: apiPrompt,
+      aspectRatio: "1:1",
+      imageSize: "1K",
+      model: imgConfig.model || 'nano-banana',
+      apiConfig: {
+        baseUrl: imgConfig.baseUrl || 'https://api.wuyinkeji.com/api/img',
+        defaultModel: imgConfig.model || 'nano-banana',
+        provider: 'sucreative'
+      }
+    };
+  } else if (isZhipuApi) {
+    // 智谱API
+    requestBody = {
+      prompt: apiPrompt,
+      size: '1024x1024',
+      quality: imgConfig.quality || 'standard',
+      watermark_enabled: false, // 始终禁用水印
+      user_id: 'storyboard-user',
+      apiConfig: {
+        baseUrl: imgConfig.baseUrl || 'https://open.bigmodel.cn/api/paas/v4',
+        defaultModel: imgConfig.model || 'cogview-4-250304',
+        provider: 'zhipu'
+      }
+    };
+  } else {
+    // 默认使用硅基流动API
+    requestBody = {
+      model: imgConfig.model || 'black-forest-labs/FLUX.1-schnell',
+      prompt: apiPrompt,
+      n: 1,
+      size: '1024x1024',
+      steps: 4,
+      apiConfig: {
+        baseUrl: imgConfig.baseUrl || 'https://api.siliconflow.cn/v1',
+        defaultModel: imgConfig.model || 'black-forest-labs/FLUX.1-schnell',
+        provider: 'siliconflow'
+      }
+    };
+  }
+  
   return fetchRetry('/api/ai/image', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-SF-Key': userKey
+      'X-SF-Key': apiKey
     },
-    body: JSON.stringify({
-      prompt,
-      size: '256x256', // 体积缩小 75%
-      steps: 20,       // 步数减少，推理更快
-      n: 4,            // 一次出 4 张草图供挑选
-      model: 'black-forest-labs/FLUX.1-schnell' // 添加硅基流动API需要的model参数
-    })
+    body: JSON.stringify(requestBody)
   }).then(r => r.json())
+    .then(data => {
+      // 确保返回与原有格式兼容的响应
+      if (data.data) {
+        return { data: data.data };
+      } else if (data.images) {
+        return {
+          data: data.images.map((img: any) => ({ url: img }))
+        };
+      } else {
+        // 直接返回API响应，如果已经是兼容格式
+        return data;
+      }
+    });
 }
 
 export const generateFrameImage = async (frame: StoryboardFrame, styleName: string, settings: AppSettings, config?: { referenceImage?: string }): Promise<string> => {
@@ -935,8 +956,10 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
   }
   
   let prompt: string;
-  // 检查是否使用免费通道（无API密钥）
-  const isFreeChannel = !apiKey;
+  // 强制使用付费通道，必须提供API密钥
+  if (!apiKey) {
+    throw new Error('API密钥不能为空，请在设置中配置您的API密钥');
+  }
   
   // 构建基础提示词
   let basePrompt = content;
@@ -946,15 +969,13 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
     basePrompt += `. 必须严格使用提供的参考主体图片中的物体外观，保持主体外观100%一致`;
   }
   
-  if (isFreeChannel) {
-    // 免费通道使用特殊模板避免黑块问题
-    prompt = `Subject: ${basePrompt}. Style: Professional storyboard sketch, rough pencil lines on clean white paper. Constraints: No solid black blocks, no heavy shadows, minimalist, high key lighting, white background.`;
-  } else if (imgConfig.provider === 'siliconflow' || imgConfig.baseUrl?.includes('siliconflow.cn')) {
+  // 构建正式提示词
+  if (imgConfig.provider === 'siliconflow' || imgConfig.baseUrl?.includes('siliconflow.cn')) {
     // 硅基流动API
-    prompt = buildPrompt(basePrompt);
+    prompt = buildPrompt(basePrompt, styleName);
   } else {
-    // 其他API提供商使用新的极简主义提示词
-    prompt = buildPrompt(basePrompt);
+    // 其他API提供商使用风格化提示词
+    prompt = buildPrompt(basePrompt, styleName);
   }
 
   const maxRetries = 5; // 增加最大重试次数到5次
@@ -964,52 +985,9 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
   const makeApiRequest = async () => {
     for (let retry = 0; retry <= maxRetries; retry++) {
       try {
-        if (isFreeChannel) {
-              // 免费通道使用我们的代理API
-              const response = await fetchRetry('/api/proxy-image', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ prompt })
-              });
-              
-              if (!response.ok) throw new Error('Proxy API Error: ' + response.statusText);
-          const data = await response.json();
-          
-          // 处理代理返回的图片数据
-          if (data.data?.[0]?.b64_json) {
-            return 'data:image/png;base64,' + data.data[0].b64_json;
-          } else if (data.data?.[0]?.url) {
-            // 如果返回的是URL，尝试获取图片内容
-            try {
-              const imageResponse = await fetch(data.data[0].url);
-              if (!imageResponse.ok) throw new Error('Failed to fetch image from proxy');
-              const blob = await imageResponse.blob();
-              return new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  resolve(reader.result as string);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-            } catch (error) {
-              console.error('Error converting proxy image URL to data URL:', error);
-              return data.data[0].url;
-            }
-          } else {
-            throw new Error('No image data in proxy response');
-          }
-        } else if (imgConfig.provider === 'gemini') {
-          // 如果有参考主体图片，需要特殊处理（Gemini API支持图片输入）
-          if (config?.referenceImage) {
-            return await generateImageGeminiWithReference(prompt, imgConfig, apiKey, config.referenceImage);
-          } else {
-            return await generateImageGemini(prompt, imgConfig, apiKey);
-          }
-        } else if (imgConfig.provider === 'siliconflow' || imgConfig.baseUrl?.includes('siliconflow.cn')) {
-          // 硅基流动API，使用我们的/api/ai/image端点
+        // 根据不同的API提供商选择不同的实现
+        if (imgConfig.provider === 'zhipu' || imgConfig.baseUrl?.includes('bigmodel.cn') || imgConfig.model?.includes('cogview')) {
+          // 智谱图像生成API
           const response = await fetchRetry('/api/ai/image', {
             method: 'POST',
             headers: {
@@ -1018,15 +996,21 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
             },
             body: JSON.stringify({
               prompt,
-              size: '384x384',
-              steps: 30,
-              n: 1
+              size: '512x512',
+              quality: imgConfig.quality, // 添加质量参数
+              watermark_enabled: false, // 始终禁用水印
+              user_id: 'storyboard-user', // 智谱API必填参数
+              apiConfig: {
+                provider: 'zhipu',
+                baseUrl: imgConfig.baseUrl || 'https://open.bigmodel.cn/api/paas/v4',
+                defaultModel: imgConfig.model || 'cogview-4-250304'
+              }
             })
           });
           
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(`Silicon Flow API Error: ${errorData.error || response.statusText}`);
+            throw new Error(`Zhipu API Error: ${errorData.error || response.statusText}`);
           }
           
           const data = await response.json();
@@ -1035,8 +1019,69 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
           } else {
             throw new Error('No image URL in response');
           }
-        } else {
+        } else if (imgConfig.provider === 'sucreative' || imgConfig.baseUrl?.includes('wuyinkeji.com') || imgConfig.model?.includes('nano-banana')) {
+          // 速创图像生成API
           return await generateImageOpenAI(prompt, imgConfig, apiKey);
+        } else {
+          // 使用用户配置的API
+          // 根据baseUrl智能检测实际的API提供商
+          let actualProvider: string = imgConfig.provider;
+          let actualBaseUrl: string | undefined = imgConfig.baseUrl;
+          let actualModel: string | undefined = imgConfig.model;
+          
+          // 如果baseUrl包含速创API的域名，强制使用速创配置
+          if (imgConfig.baseUrl?.includes('wuyinkeji.com')) {
+            actualProvider = 'sucreative';
+            actualModel = actualModel || 'nano-banana';
+            console.log('检测到速创API URL，自动切换到速创配置');
+            // 使用generateImageOpenAI处理速创API
+            return await generateImageOpenAI(prompt, imgConfig, apiKey);
+          }
+          
+          // 如果baseUrl包含智谱API的域名，使用智谱配置
+          if (imgConfig.baseUrl?.includes('bigmodel.cn')) {
+            actualProvider = 'zhipu';
+            actualBaseUrl = actualBaseUrl || 'https://open.bigmodel.cn/api/paas/v4';
+            actualModel = actualModel || 'cogview-4-250304';
+          }
+          
+          // 默认使用硅基流动
+          if (!actualBaseUrl) {
+            actualBaseUrl = 'https://api.siliconflow.cn/v1';
+            actualModel = actualModel || 'black-forest-labs/FLUX.1-schnell';
+          }
+          
+          const response = await fetchRetry('/api/ai/image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-SF-Key': apiKey
+            },
+            body: JSON.stringify({
+              prompt,
+              size: '512x512',
+              quality: imgConfig.quality,
+              watermark_enabled: false, // 始终禁用水印
+              user_id: 'storyboard-user',
+              apiConfig: {
+                provider: actualProvider,
+                baseUrl: actualBaseUrl,
+                defaultModel: actualModel
+              }
+            })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`API Error: ${errorData.error || response.statusText}`);
+          }
+          
+          const data = await response.json();
+          if (data.data?.[0]?.url) {
+            return data.data[0].url;
+          } else {
+            throw new Error('No image URL in response');
+          }
         }
       } catch (error) {
           console.error('Image Gen Error (attempt ' + (retry + 1) + '/' + (maxRetries + 1) + '):', error);
@@ -1076,7 +1121,7 @@ export const generateFrameImage = async (frame: StoryboardFrame, styleName: stri
 
   // 将请求添加到队列中
   return requestQueue.addRequest(makeApiRequest);
-};
+}
 
 // --- Implementations ---
 
@@ -1110,7 +1155,7 @@ async function generatePlanOpenAI(prompt: string, config: ApiConfig, apiKey: str
   const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
   
   // 在生产环境中直接使用原始API地址，开发环境使用代理
-  const isProduction = import.meta.env.PROD;
+  const isProduction = process.env.NODE_ENV === 'production';
   let requestUrl: string;
   
   if (isProduction) {
@@ -1260,11 +1305,7 @@ async function generateImageGemini(prompt: string, config: ApiConfig, apiKey: st
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: config.model || 'gemini-2.5-flash-image',
-    contents: prompt,
-    generationConfig: {
-      width: 384,  // 统一使用384x384分辨率提高生成速度
-      height: 384,
-    }
+    contents: prompt
   });
   if (response.candidates?.[0]?.content?.parts) {
     for (const part of response.candidates[0].content.parts) {
@@ -1288,11 +1329,7 @@ async function generateImageGeminiWithReference(prompt: string, config: ApiConfi
           { inlineData: { data: referenceImage.split(',')[1], mimeType: 'image/png' } }
         ]
       }
-    ],
-    generationConfig: {
-      width: 384,
-      height: 384,
-    }
+    ]
   });
   if (response.candidates?.[0]?.content?.parts) {
     for (const part of response.candidates[0].content.parts) {
@@ -1306,132 +1343,74 @@ async function generateImageGeminiWithReference(prompt: string, config: ApiConfi
 
 async function generateImageOpenAI(prompt: string, config: ApiConfig, apiKey: string) {
   const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+  const isProduction = process.env.NODE_ENV === 'production';
   
-  // 在生产环境中直接使用原始API地址，开发环境使用代理
-  const isProduction = import.meta.env.PROD;
-  let requestUrl: string;
+  // 统一使用代理API，避免CORS问题
+  // 生产环境和开发环境都使用/api/ai/image代理
   
-  if (isProduction) {
-    // 生产环境直接使用原始API地址
-    requestUrl = baseUrl;
-  } else {
-    // 开发环境使用代理避免CORS
-    let proxyUrl: string;
-    if (baseUrl.includes('deepseek.com')) {
-      proxyUrl = '/api/deepseek';
-    } else if (baseUrl.includes('openai.com')) {
-      proxyUrl = '/api/openai';
-    } else if (baseUrl.includes('bigmodel.cn')) {
-      proxyUrl = '/api/zhipu';
-    } else if (baseUrl.includes('dashscope.aliyuncs.com')) {
-      proxyUrl = '/api/qwen';
-    } else if (baseUrl.includes('moonshot.cn')) {
-      proxyUrl = '/api/moonshot';
-    } else if (baseUrl.includes('volces.com')) {
-      proxyUrl = '/api/doubao';
-    } else if (baseUrl.includes('hunyuan.cloud.tencent.com')) {
-      proxyUrl = '/api/hunyuan';
-    } else if (baseUrl.includes('siliconflow.cn')) {
-      proxyUrl = '/api/siliconflow';
-    } else {
-      proxyUrl = baseUrl;
-    }
-    requestUrl = proxyUrl;
-  }
-  
-  // 构建完整路径，确保代理后仍然包含版本号
+  // 构建完整路径
   let fullUrl;
   let body: any;
   
-  // 特殊处理速创API
+  // 特殊处理速创API - 使用统一的代理端点
   if (baseUrl.includes('wuyinkeji.com')) {
-    // 速创API使用特殊的端点和参数格式
-    const endpoint = '/nanoBanana';
-    
-    if (isProduction) {
-      // 生产环境直接使用完整的速创API地址
-      fullUrl = baseUrl + (baseUrl.endsWith('/') ? endpoint.slice(1) : endpoint);
-    } else {
-      // 开发环境使用代理
-      fullUrl = requestUrl + (requestUrl.endsWith('/') ? endpoint.slice(1) : endpoint);
-    }
+    // 速创API使用/api/ai/image代理
+    fullUrl = '/api/ai/image';
     
     // 速创API的请求参数格式
     body = {
       prompt: prompt,
-      aspectRatio: "1:1", // 默认使用1:1比例
-      model: config.model || 'nano-banana' // 速创API的model参数
+      aspectRatio: "1:1",
+      imageSize: "1K",
+      model: config.model || 'nano-banana',
+      apiConfig: {
+        baseUrl: baseUrl,
+        defaultModel: config.model || 'nano-banana',
+        provider: 'sucreative'
+      }
+    };
+  } else if (baseUrl.includes('bigmodel.cn')) {
+    // 智谱API - 使用统一的代理端点
+    fullUrl = '/api/ai/image';
+    
+    body = {
+      model: config.model || 'cogview-4-250304',
+      prompt: prompt,
+      size: '1024x1024',
+      user_id: 'storyboard-user',
+      quality: 'standard',
+      watermark_enabled: false,
+      apiConfig: {
+        baseUrl: baseUrl,
+        defaultModel: config.model || 'cogview-4-250304',
+        provider: 'zhipu'
+      }
     };
   } else {
-    // 其他OpenAI兼容API的处理逻辑
-    const endpoint = '/v1/images/generations';
+    // 其他OpenAI兼容API - 使用统一的代理端点
+    fullUrl = '/api/ai/image';
     
-    if (isProduction) {
-      // 生产环境直接构建完整URL
-      // 检查baseUrl是否已经包含版本号
-      const urlParts = baseUrl.split('/');
-      const versionIndex = urlParts.findIndex(part => part.startsWith('v'));
-      
-      if (versionIndex > -1) {
-        // 如果baseUrl已经包含版本号，只拼接端点的资源路径部分
-        const endpointPath = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
-        if (baseUrl.endsWith('/')) {
-          fullUrl = baseUrl + endpointPath.slice(1); // 移除端点路径开头的斜杠
-        } else {
-          fullUrl = baseUrl + endpointPath;
-        }
-      } else {
-        // 如果baseUrl没有版本号，使用完整的endpoint
-        if (baseUrl.endsWith('/')) {
-          fullUrl = baseUrl + endpoint.slice(1); // 移除端点开头的斜杠
-        } else {
-          fullUrl = baseUrl + endpoint;
-        }
-      }
-    } else {
-      // 开发环境使用代理URL构建
-      // 提取原始URL中的路径部分（包括版本号）
-      const urlParts = baseUrl.split('/');
-      const versionIndex = urlParts.findIndex(part => part === 'v1' || part === 'v2');
-      
-      if (versionIndex > -1) {
-        // 如果原始URL包含版本号，提取版本号和之后的路径
-        const versionPath = urlParts.slice(versionIndex).join('/');
-        // 确保不会重复添加版本号
-        const endpointWithoutVersion = endpoint.substring(endpoint.indexOf('/', 1)); // 去掉开头的/v1部分
-        fullUrl = requestUrl + '/' + versionPath + (endpointWithoutVersion.startsWith('/') ? '' : '/') + endpointWithoutVersion.slice(1);
-      } else {
-        // 如果原始URL没有版本号，使用默认的v1版本号
-        fullUrl = requestUrl + endpoint;
-      }
-    }
-    
-    // 其他OpenAI兼容API的请求参数
     body = {
       model: config.model,
       prompt: prompt,
       n: 1,
-      size: "384x384", // 使用用户指定的较小分辨率以提高生成速度
-      response_format: "b64_json"
+      size: "384x384",
+      response_format: "b64_json",
+      apiConfig: {
+        baseUrl: baseUrl,
+        defaultModel: config.model,
+        provider: 'openai'
+      }
     };
   }
-  // 设置请求头
-  const requestHeaders: HeadersInit = {};
-  
-  // 为不同的API设置对应的请求头
-  if (baseUrl.includes('wuyinkeji.com')) {
-    // 速创API的特殊请求头
-    requestHeaders['Content-Type'] = 'application/json;charset:utf-8;';
-    requestHeaders['Authorization'] = apiKey;
-  } else {
-    // 其他OpenAI兼容API的请求头
-    requestHeaders['Content-Type'] = 'application/json';
-    requestHeaders['Authorization'] = 'Bearer ' + apiKey;
-  }
 
+  // 统一使用X-SF-Key头传递API密钥
   const response = await fetchRetry(fullUrl, {
     method: 'POST',
-    headers: requestHeaders,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-SF-Key': apiKey
+    },
     body: JSON.stringify(body)
   });
   
@@ -1476,7 +1455,7 @@ async function generateImageOpenAI(prompt: string, config: ApiConfig, apiKey: st
     const url = data.data?.[0]?.url;
         // 在生产环境中，直接返回URL而不转换为base64
       // 避免因CORS问题导致图片加载失败
-      if (import.meta.env.PROD) {
+      if (process.env.NODE_ENV === 'production') {
         return url;
       }
       
@@ -1543,7 +1522,7 @@ async function pollSucreativeTaskResult(taskId: string, baseUrl: string, apiKey:
       const response = await fetchRetry(pollUrl, {
         method: 'GET',
         headers: {
-          'Authorization': apiKey,
+          'Authorization': apiKey, // 速创API要求直接使用密钥，不需要Bearer前缀
           'Content-Type': 'application/json'
         }
       });
@@ -1602,14 +1581,33 @@ function mapToFrames(data: any[]): Partial<StoryboardFrame>[] {
   }));
 }
 
-const mockFrames = (count: number): Partial<StoryboardFrame>[] => {
+// 存储用户脚本内容，用于生成基于用户输入的 mock 数据
+let lastUserScript = '';
+
+const mockFrames = (count: number, userScript?: string): Partial<StoryboardFrame>[] => {
+  // 使用传入的脚本或最后保存的脚本
+  const script = userScript || lastUserScript || 'scene';
+  
+  // 截断脚本到合理长度（用于视觉提示词）
+  const scriptSummary = script.length > 100 ? script.substring(0, 100) + '...' : script;
+  
+  console.log('Generating mock frames with script:', { 
+    scriptLength: script.length, 
+    summary: scriptSummary,
+    count 
+  });
+  
   return Array.from({ length: count }).map((_, i) => ({
     id: 'mock-' + i,
     number: i + 1,
-    description: 'Shot ' + (i + 1) + ' narrative description. The character moves slowly towards the light.',
-    descriptionZh: '第 ' + (i + 1) + ' 镜剧情描述。角色慢慢走向光亮处，神情凝重。',
-    visualPrompt: 'Shot ' + (i + 1) + ' visual sketch prompt. Low angle, high contrast, minimalist lines.',
-    visualPromptZh: '第 ' + (i + 1) + ' 镜画面提示词。低角度仰拍，高对比度，极简线条风格。',
+    // description: 英文视频提示词 - 不包含用户脚本
+    description: `Scene ${i + 1}: Narrative description and camera direction`,
+    // descriptionZh: 中文视频提示词 - 不包含用户脚本
+    descriptionZh: `第${i + 1}镜：剧情描述和镜头指导`,
+    // visualPrompt: 英文视觉提示词 - 用于生图，包含用户脚本摘要
+    visualPrompt: `Storyboard sketch: ${scriptSummary} - scene ${i + 1}, simple line art style, white background`,
+    // visualPromptZh: 中文视觉描述 - 参考用，包含用户脚本摘要
+    visualPromptZh: `分镜草图：${scriptSummary} - 第${i + 1}镜，简洁线条风格，白色背景`,
     symbols: []
   }));
 };

@@ -1,70 +1,70 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 30
 };
 
+// CORS 头部
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-function withCORSHeaders(response: Response): Response {
-    const newResponse = new Response(response.body, response);
-    for (const [key, value] of response.headers.entries()) {
-        newResponse.headers.set(key, value);
-    }
-    Object.entries(CORS_HEADERS).forEach(([key, value]) => {
-        newResponse.headers.set(key, value);
-    });
-    return newResponse;
+function setCorsHeaders(res: VercelResponse) {
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
 }
 
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // 设置CORS头
+  setCorsHeaders(res);
+
+  // 处理预检请求
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    return res.status(204).end();
   }
 
+  // 只允许POST请求
   if (req.method !== 'POST') {
-    return withCORSHeaders(new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    }));
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const requestBody = await req.json();
-    const { targetUrl, ...bodyToForward } = requestBody;
+    const { url } = req.body;
 
-    if (!targetUrl || !targetUrl.startsWith('https')) {
-      return withCORSHeaders(new Response(JSON.stringify({ error: 'Invalid targetUrl provided.' }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
     }
 
-    const authorizationHeader = req.headers.get('Authorization');
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (authorizationHeader) {
-      headers['Authorization'] = authorizationHeader;
+    // 获取图片
+    const imageResponse = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!imageResponse.ok) {
+      return res.status(imageResponse.status).json({
+        error: `Failed to fetch image: ${imageResponse.statusText}`
+      });
     }
 
-    const proxyResponse = await fetch(targetUrl, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(bodyToForward),
-    });
-
-    const response = new Response(proxyResponse.body, {
-      status: proxyResponse.status,
-      statusText: proxyResponse.statusText,
-      headers: proxyResponse.headers,
-    });
+    const blob = await imageResponse.blob();
+    const buffer = await blob.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
     
-    response.headers.delete('content-encoding');
-    response.headers.delete('content-length');
+    // 获取 MIME 类型
+    const contentType = imageResponse.headers.get('content-type') || 'image/png';
+    const dataUrl = `data:${contentType};base64,${base64}`;
 
-    return withCORSHeaders(response);
-
+    return res.status(200).json({ dataUrl });
   } catch (error) {
-    console.error('Error in proxy handler:', error);
-    return withCORSHeaders(new Response(JSON.stringify({ error: 'Internal Server Error in proxy.' }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
+    console.error('Proxy image error:', error);
+    return res.status(500).json({
+      error: 'Failed to process image',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 }

@@ -1,191 +1,190 @@
-// 切换到Serverless Function以支持更长的超时时间
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
 export const config = {
   maxDuration: 30
 };
-
-// 使用Web API的Response对象（Vercel Edge Runtime原生支持）
 
 // 定义请求体接口
 interface ChatRequestBody {
   messages?: Array<{ role: string; content: string }>;
   frameCount?: number;
+  apiConfig?: {
+    baseUrl?: string;
+    defaultModel?: string;
+    provider?: string;
+  };
+  max_tokens?: number;
+  temperature?: number;
   [key: string]: any;
 }
 
-// 1. 定义 CORS 头部
-// 本地测试时使用通配符，生产环境请替换为您网站的实际域名 (含 https://)
+// CORS 头部
 const CORS_HEADERS = {
-    'Access-Control-Allow-Origin': '*', 
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    // 确保包含所有请求中使用的自定义头，特别是 'x-sf-key'
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sf-key', 
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sf-key',
 };
 
-// 辅助函数：将 CORS 头添加到 Response
-function withCORSHeaders(response: Response): Response {
-    const newResponse = new Response(response.body, response);
-    // 复制原始 Headers
-    for (const [key, value] of response.headers.entries()) {
-        newResponse.headers.set(key, value);
-    }
-    // 添加 CORS Headers
-    Object.entries(CORS_HEADERS).forEach(([key, value]) => {
-        newResponse.headers.set(key, value);
-    });
-    return newResponse;
+function setCorsHeaders(res: VercelResponse) {
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
 }
 
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // 设置CORS头
+  setCorsHeaders(res);
 
-    // 2. 优先处理预检请求 (OPTIONS)
-    if (req.method === 'OPTIONS') {
-        // 返回 204 No Content，并附加 CORS 头
-        return new Response(null, { status: 204, headers: CORS_HEADERS });
+  // 处理预检请求
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  // 只允许POST请求
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // 从自定义Header中获取用户密钥（支持大小写）
+  const KEY = (req.headers['x-sf-key'] || req.headers['X-SF-Key'] || req.headers['X-Sf-Key']) as string;
+  if (!KEY) {
+    console.log('Headers received:', JSON.stringify(req.headers));
+    return res.status(401).json({ 
+      error: 'Authorization required: Missing X-SF-Key in headers.',
+      receivedHeaders: Object.keys(req.headers)
+    });
+  }
+
+  const body = req.body as ChatRequestBody;
+  const apiConfig = body.apiConfig || {};
+
+  // 确定API端点
+  let baseUrl = apiConfig.baseUrl || 'https://api.siliconflow.cn/v1';
+  if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+  // 检测API类型
+  const isZhipuApi = apiConfig.provider === 'zhipu' || baseUrl.includes('bigmodel.cn');
+  
+  let endpoint: string;
+  if (isZhipuApi) {
+    // 智谱API的端点格式
+    if (baseUrl.includes('/paas/v4')) {
+      endpoint = baseUrl.includes('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
+    } else {
+      endpoint = `${baseUrl}/paas/v4/chat/completions`;
     }
-    
-    // 3. Method Check 中添加 CORS 头
-    if (req.method !== 'POST') {
-      return withCORSHeaders(new Response(JSON.stringify({ error: 'Method not allowed' }), { 
-        status: 405, 
-        headers: { 'Content-Type': 'application/json' } 
-      }));
+  } else {
+    endpoint = baseUrl.includes('/chat/completions') 
+      ? baseUrl 
+      : `${baseUrl}/chat/completions`;
+  }
+
+  // 确定模型 - 根据提供商选择合适的默认模型
+  let model = apiConfig.defaultModel;
+  
+  if (!model) {
+    // 如果没有指定模型，根据 baseUrl 推断提供商并选择默认模型
+    if (isZhipuApi) {
+      model = 'glm-4';
+    } else if (baseUrl.includes('deepseek')) {
+      model = 'deepseek-chat';
+    } else if (baseUrl.includes('siliconflow')) {
+      model = 'Qwen/Qwen2.5-7B-Instruct';
+    } else if (baseUrl.includes('dashscope')) {
+      model = 'qwen-plus';
+    } else if (baseUrl.includes('moonshot')) {
+      model = 'moonshot-v1-8k';
+    } else if (baseUrl.includes('volces')) {
+      model = 'doubao-pro-32k';
+    } else if (baseUrl.includes('hunyuan')) {
+      model = 'hunyuan-standard';
+    } else {
+      model = 'gpt-3.5-turbo'; // 最后的默认值
     }
-    
-     // 从自定义 Header 中获取用户密钥 (保留您的动态密钥逻辑)
-     const KEY = req.headers.get('x-sf-key');
-     if (!KEY) {
-       // 4. 未授权返回中添加 CORS 头
-       return withCORSHeaders(new Response(JSON.stringify({ error: 'Authorization required: Missing X-SF-Key in headers.' }), {
-           status: 401,
-           headers: { 'Content-Type': 'application/json' }
-       }));
-     }
-    
-    // 从请求体中获取 apiConfig (支持自定义)
-    const body = await req.json().catch(() => ({})) as ChatRequestBody; 
-    const apiConfig = body.apiConfig || {};
-    
-    // 确定 API 端点
-    let baseUrl = apiConfig.baseUrl || 'https://api.siliconflow.cn/v1';
-    // 移除末尾斜杠
-    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-    
-    // 如果是完整路径则不添加 /chat/completions，否则添加
-    const endpoint = baseUrl.includes('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
-    
-    // 确定模型
-    const model = apiConfig.defaultModel || 'deepseek-ai/DeepSeek-R1';
+  }
+  
+  // 添加调试日志
+  console.log('Chat API Request:', {
+    provider: apiConfig.provider,
+    baseUrl: baseUrl,
+    endpoint: endpoint,
+    model: model,
+    isZhipuApi: isZhipuApi,
+    messagesCount: body.messages?.length || 0,
+    hasApiKey: !!KEY,
+    keyLength: KEY?.length || 0
+  });
 
-    try {
-        // 移除流式响应，使用常规请求
-        const r = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-                // 使用用户提供的动态 KEY
-                Authorization: `Bearer ${KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-                model: model, 
-                messages: body.messages,
-                max_tokens: body.max_tokens,
-                temperature: body.temperature
-            }),
-            signal: AbortSignal.timeout(28000) // 增加到28秒，确保在Serverless Function的30秒限制内
-        });
-        
-        // 5. 处理 API 响应（包括 429 错误）
-        if (!r.ok) {
-            const status = r.status;
-            const statusText = r.statusText;
-            
-            // 标记 429 错误以便前端调试
-            const warning = status === 429 
-                ? `API failed with status ${status} (Rate Limit Exceeded). Showing cached result.` 
-                : `API failed with status ${status} (${statusText}). Showing cached result.`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 28000);
 
-                    // 从请求体中获取目标分镜数量
-            const frameCount = body.frameCount || 4; // 默认生成4个分镜
-            
-            // 从请求消息中提取用户输入的内容
-            let userInput = "story scene"; // 默认值
-            if (body.messages && body.messages.length > 0) {
-                const userMessage = body.messages.find((msg: any) => msg.role === "user");
-                if (userMessage && userMessage.content) {
-                    // 提取用户输入的核心内容（忽略系统提示词部分）
-                    const content = userMessage.content;
-                    const coreScriptMatch = content.match(/\[PROJECT SETTINGS\][\s\S]*?- Core Script: "([^"]*)"/);
-                    if (coreScriptMatch && coreScriptMatch[1]) {
-                        userInput = coreScriptMatch[1];
-                    } else {
-                        // 如果没有找到结构化的核心脚本，使用整个用户内容的前100个字符
-                        userInput = content.substring(0, 100).trim();
-                    }
-                }
-            }
-            
-            // 根据分镜数量和用户输入生成相应数量的mock数据
-            const mockFrames = Array.from({ length: frameCount }, (_, i) => ({
-                visualPrompt: `${userInput} - scene ${i + 1}, storyboard sketch, minimalist style`,
-                visualPromptZh: `${userInput} - 第${i + 1}镜，分镜草图，极简风格`,
-                description: `${userInput} - Scene ${i + 1}: Narrative description of the scene`,
-                descriptionZh: `${userInput} - 第${i + 1}镜：场景的剧情描述`
-            }));
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: body.messages,
+        max_tokens: body.max_tokens,
+        temperature: body.temperature
+      }),
+      signal: controller.signal
+    });
 
-            // 降级模板 (所有降级响应都通过 withCORSHeaders 确保兼容)
-            return withCORSHeaders(new Response(JSON.stringify({
-                choices: [{ message: { content: JSON.stringify(mockFrames) } }],
-                warning: warning
-            }), { 
-                status: 200, 
-                headers: { 'Content-Type': 'application/json' } 
-            }));
-        }
-        
-        // 6. 成功响应中添加 CORS 头
-        const data = await r.json();
-        return withCORSHeaders(new Response(JSON.stringify(data), { 
-            status: 200, 
-            headers: { 'Content-Type': 'application/json' } 
-        }));
+    clearTimeout(timeoutId);
 
-    } catch (error) {
-        console.error('Chat API Error:', error);
-        // 7. 内部错误降级响应中添加 CORS 头
-        
-        // 从请求体中获取目标分镜数量
-        const frameCount = body.frameCount || 4; // 默认生成4个分镜
-        
-        // 从请求消息中提取用户输入的内容
-        let userInput = "story scene"; // 默认值
-        if (body.messages && body.messages.length > 0) {
-            const userMessage = body.messages.find((msg: any) => msg.role === "user");
-            if (userMessage && userMessage.content) {
-                // 提取用户输入的核心内容（忽略系统提示词部分）
-                const content = userMessage.content;
-                const coreScriptMatch = content.match(/\[PROJECT SETTINGS\][\s\S]*?- Core Script: "([^"]*)"/);
-                if (coreScriptMatch && coreScriptMatch[1]) {
-                    userInput = coreScriptMatch[1];
-                } else {
-                    // 如果没有找到结构化的核心脚本，使用整个用户内容的前100个字符
-                    userInput = content.substring(0, 100).trim();
-                }
-            }
-        }
-        
-        // 根据分镜数量和用户输入生成相应数量的mock数据
-        const mockFrames = Array.from({ length: frameCount }, (_, i) => ({
-            visualPrompt: `${userInput} - scene ${i + 1}, storyboard sketch, minimalist style`,
-            visualPromptZh: `${userInput} - 第${i + 1}镜，分镜草图，极简风格`,
-            description: `${userInput} - Scene ${i + 1}: Narrative description of the scene`,
-            descriptionZh: `${userInput} - 第${i + 1}镜：场景的剧情描述`
-        }));
+    if (!response.ok) {
+      const status = response.status;
+      const statusText = response.statusText;
+      
+      // 尝试获取详细错误信息
+      let errorDetail = '';
+      try {
+        const errorData = await response.json();
+        errorDetail = JSON.stringify(errorData);
+        console.error('Chat API Error Response:', errorData);
+      } catch (e) {
+        errorDetail = statusText;
+      }
 
-        return withCORSHeaders(new Response(JSON.stringify({
-            choices: [{ message: { content: JSON.stringify(mockFrames) } }]
-        }), { 
-            status: 200, 
-            headers: { 'Content-Type': 'application/json' } 
-        }));
+      let warning = '';
+      if (status === 429) {
+        warning = `API failed with status ${status} (Rate Limit Exceeded). ${errorDetail}`;
+      } else if (status === 400 && errorDetail.includes('Model Not Exist')) {
+        warning = `Model "${model}" does not exist on this API provider. Please check your model name in settings. Error: ${errorDetail}`;
+      } else if (status === 401 || status === 403) {
+        warning = `API authentication failed with status ${status}. Please check your API key. Error: ${errorDetail}`;
+      } else {
+        warning = `API failed with status ${status} (${statusText}). ${errorDetail}`;
+      }
+
+      console.error('Chat API Failed:', { status, statusText, endpoint, model, errorDetail, warning });
+
+      // 返回错误状态，让客户端知道API调用失败了
+      return res.status(status).json({
+        error: warning,
+        status: status,
+        endpoint: endpoint,
+        model: model,
+        provider: apiConfig.provider
+      });
     }
+
+    const data = await response.json();
+    return res.status(200).json(data);
+
+  } catch (error) {
+    console.error('Chat API Error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // 返回错误状态，让客户端知道API调用失败了
+    return res.status(500).json({
+      error: `Chat API Error: ${errorMessage}`,
+      details: errorMessage
+    });
+  }
 }

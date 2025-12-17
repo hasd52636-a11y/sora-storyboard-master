@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API端点测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #6366f1;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border-left: 4px solid #6366f1;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #10b981;
+            color: white;
+        }
+        .status.error {
+            background: #ef4444;
+            color: white;
+        }
+        .status.pending {
+            background: #f59e0b;
+            color: white;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .info {
+            background: #dbeafe;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 API端点测试工具</h1>
+        
+        <div class="info">
+            <strong>📍 当前服务器地址：</strong> http://localhost:3001<br>
+            <strong>⚠️ 注意：</strong> 请确保已在设置中配置了有效的API密钥
+        </div>
+
+        <div class="test-section">
+            <h3>1. 开发服务器状态 <span class="status success" id="server-status">运行中</span></h3>
+            <p>Vite开发服务器运行在端口 3001（端口3000被占用）</p>
+        </div>
+
+        <div class="test-section">
+            <h3>2. API代理配置检查</h3>
+            <p>以下API代理已配置：</p>
+            <ul>
+                <li>/api/deepseek → https://api.deepseek.com</li>
+                <li>/api/openai → https://api.openai.com</li>
+                <li>/api/zhipu → https://open.bigmodel.cn</li>
+                <li>/api/qwen → https://dashscope.aliyuncs.com</li>
+                <li>/api/moonshot → https://api.moonshot.cn</li>
+                <li>/api/doubao → https://ark.cn-beijing.volces.com</li>
+                <li>/api/hunyuan → https://api.hunyuan.cloud.tencent.com</li>
+                <li>/api/siliconflow → https://api.siliconflow.cn</li>
+                <li>/api/sucreative → https://api.wuyinkeji.com</li>
+                <li>/api/ai/chat → 聊天API端点</li>
+                <li>/api/ai/image → 图像生成API端点</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>3. 测试API端点 <span class="status pending" id="api-status">待测试</span></h3>
+            <button onclick="testChatAPI()">测试聊天API</button>
+            <button onclick="testImageAPI()">测试图像API</button>
+            <div class="result" id="api-result" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. 环境变量检查</h3>
+            <p>SILICONFLOW_API_KEY: <span id="api-key-status">检查中...</span></p>
+            <button onclick="checkEnvVars()">检查环境变量</button>
+            <div class="result" id="env-result" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. 快速操作</h3>
+            <button onclick="window.location.href='http://localhost:3001'">打开应用</button>
+            <button onclick="window.location.href='http://localhost:3001/#/settings'">打开设置</button>
+        </div>
+    </div>
+
+    <script>
+        // 检查API密钥
+        function checkEnvVars() {
+            const apiKey = localStorage.getItem('appSettings');
+            const resultDiv = document.getElementById('env-result');
+            resultDiv.style.display = 'block';
+            
+            if (apiKey) {
+                try {
+                    const settings = JSON.parse(apiKey);
+                    resultDiv.innerHTML = `
+                        <strong>✅ 找到本地设置</strong><br>
+                        LLM Provider: ${settings.llm?.provider || '未设置'}<br>
+                        Image Provider: ${settings.image?.provider || '未设置'}<br>
+                        API密钥已加密存储
+                    `;
+                    document.getElementById('api-key-status').innerHTML = '<span style="color: green;">✅ 已配置</span>';
+                } catch (e) {
+                    resultDiv.innerHTML = '<strong>⚠️ 设置解析失败</strong><br>' + e.message;
+                }
+            } else {
+                resultDiv.innerHTML = '<strong>⚠️ 未找到本地设置</strong><br>请先在应用中配置API密钥';
+                document.getElementById('api-key-status').innerHTML = '<span style="color: orange;">⚠️ 未配置</span>';
+            }
+        }
+
+        // 测试聊天API
+        async function testChatAPI() {
+            const resultDiv = document.getElementById('api-result');
+            const statusSpan = document.getElementById('api-status');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '正在测试聊天API...';
+            statusSpan.className = 'status pending';
+            statusSpan.textContent = '测试中';
+
+            try {
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-SF-Key': 'test-key'
+                    },
+                    body: JSON.stringify({
+                        messages: [{ role: 'user', content: 'Hello' }],
+                        frameCount: 4
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusSpan.className = 'status success';
+                    statusSpan.textContent = '正常';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 聊天API响应成功</strong><br>
+                        状态码: ${response.status}<br>
+                        响应: <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    statusSpan.className = 'status error';
+                    statusSpan.textContent = '异常';
+                    resultDiv.innerHTML = `
+                        <strong>⚠️ API返回错误</strong><br>
+                        状态码: ${response.status}<br>
+                        错误: <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                statusSpan.className = 'status error';
+                statusSpan.textContent = '失败';
+                resultDiv.innerHTML = `
+                    <strong>❌ 请求失败</strong><br>
+                    错误: ${error.message}
+                `;
+            }
+        }
+
+        // 测试图像API
+        async function testImageAPI() {
+            const resultDiv = document.getElementById('api-result');
+            const statusSpan = document.getElementById('api-status');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '正在测试图像API...';
+            statusSpan.className = 'status pending';
+            statusSpan.textContent = '测试中';
+
+            try {
+                const response = await fetch('/api/ai/image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-SF-Key': 'test-key'
+                    },
+                    body: JSON.stringify({
+                        model: 'black-forest-labs/FLUX.1-schnell',
+                        prompt: 'A simple test image',
+                        n: 1,
+                        size: '1024x1024'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusSpan.className = 'status success';
+                    statusSpan.textContent = '正常';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 图像API响应成功</strong><br>
+                        状态码: ${response.status}<br>
+                        响应: <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    statusSpan.className = 'status error';
+                    statusSpan.textContent = '异常';
+                    resultDiv.innerHTML = `
+                        <strong>⚠️ API返回错误</strong><br>
+                        状态码: ${response.status}<br>
+                        错误: <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                statusSpan.className = 'status error';
+                statusSpan.textContent = '失败';
+                resultDiv.innerHTML = `
+                    <strong>❌ 请求失败</strong><br>
+                    错误: ${error.message}
+                `;
+            }
+        }
+
+        // 页面加载时检查环境变量
+        window.onload = function() {
+            checkEnvVars();
+        };
+    </script>
+</body>
+</html>
